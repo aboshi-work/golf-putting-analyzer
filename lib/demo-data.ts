@@ -81,11 +81,11 @@ export const DEMO_PUTTERS: Putter[] = [
   },
 ];
 
+// デモのコース（実在のコース名。芝は予約サイトの掲載でいずれもベント。グリーンの速さはデモ用の仮の値）
 const COURSES = [
-  { name: "富士見ヶ丘CC", grass: "bent" as const, stimp: 9.5 },
-  { name: "湘南シーサイドGC", grass: "bent" as const, stimp: 10.5 },
-  { name: "那須高原GC", grass: "bent" as const, stimp: 8.5 },
-  { name: "南房総カントリー", grass: "korai" as const, stimp: 8.0 },
+  { name: "オーソルヴェール軽井沢倶楽部", grass: "bent" as const, stimp: 9.5 },
+  { name: "愛知県森林公園ゴルフ場", grass: "bent" as const, stimp: 10.0 },
+  { name: "多治見カントリークラブ", grass: "bent" as const, stimp: 9.5 },
 ];
 
 export const DEMO_COURSES: GolfCourse[] = COURSES.map((c, i) => ({
