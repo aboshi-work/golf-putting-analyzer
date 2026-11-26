@@ -76,7 +76,8 @@ export type CardFill = {
 };
 
 const FONT = "'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif";
-const HAND = "'Caveat', 'Bradley Hand', 'Comic Sans MS', cursive";
+// 漢字・かなは Caveat に無いので Noto Sans JP で描く（PDF で別フォント＝Type3 に落ちないように）
+const HAND = "'Caveat', 'Noto Sans JP', 'Bradley Hand', 'Comic Sans MS', cursive";
 
 const f = (n: number) => Number(n.toFixed(3)).toString();
 
