@@ -120,7 +120,7 @@ const html = `<!DOCTYPE html>
     background: #d4a93c; color: #10271a; text-decoration: none; cursor: pointer; }
   .toolbar .hint { opacity: .85; font-size: 14px; }
   .viewport { overflow-x: auto; padding: 24px 16px 48px; }
-  .sheet { position: relative; width: 210mm; height: 297mm; margin: 0 auto 24px; background: #fff; box-shadow: 0 8px 30px rgba(0,0,0,.18); overflow: hidden; }
+  .sheet { position: relative; width: 210mm; height: 297mm; margin: 0 auto 24px; background: #fff; box-shadow: 0 8px 30px rgba(0,0,0,.18); overflow: hidden; scroll-margin-top: 80px; }
   .abs { position: absolute; }
   h1 { margin: 0; font-size: 5.4mm; line-height: 1.35; font-weight: 900; letter-spacing: .02em; }
   .lead { font-size: 3.3mm; line-height: 1.55; color: var(--ink); margin: 1.6mm 0 0; }
