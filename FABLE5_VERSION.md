@@ -7,7 +7,7 @@
 
 ### OCR・サーバー
 - OCRモデルを `gemini-2.5-flash`（2026/10/16廃止予定）→ **`gemini-3.1-flash-lite`** に移行
-  - `.env` の `GEMINI_MODEL` で切替可能（高精度版: `gemini-3.5-flash`）
+  - `.env` の `GEMINI_MODEL` で切替可能（2026-11-26 から既定は `gemini-3.1-flash-lite`＋確認用 `gemini-3.5-flash-lite`。`gemini-3.5-flash` は廃止）
   - Gemini 3系は `thinkingLevel`、2.5系は `thinkingBudget` を自動振り分け（server/_core/llm.ts）
 - `ocr.analyzeScorecard` を認証必須化（未認証のGemini APIコスト消費を防止）
 - 未使用の `ocr.uploadImage` / `ocr.analyzeBatch` を削除
