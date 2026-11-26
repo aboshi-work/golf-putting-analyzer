@@ -15,12 +15,12 @@ import { useColors } from "@/hooks/use-colors";
 import { shadowPrimary, shadowSm } from "@/lib/card-shadow";
 import { hapticSuccess } from "@/lib/haptics";
 import { clearOcrSession, getOcrSession, type SideResult } from "@/lib/ocr-session";
-import { holeNumberFor, LR_OPTIONS, MISS_OPTIONS, PUTT_FOR_OPTIONS, UD_OPTIONS, type CardSide } from "@/lib/scorecard/layout";
+import { CARD_H, CARD_W, holeNumberFor, LR_OPTIONS, MISS_OPTIONS, PUTT_FOR_OPTIONS, UD_OPTIONS, type CardSide } from "@/lib/scorecard/layout";
 import { cardDateToYmd, effectiveTotal, rowHasData, rowToHole, validateRow, type OcrRow } from "@/lib/scorecard/ocr";
 import { getPutters, saveHolesForRound, saveRound } from "@/lib/storage";
 import type { HoleData, Round } from "@/lib/types";
 
-const CARD_ASPECT = 175 / 105;
+const CARD_ASPECT = CARD_W / CARD_H;
 const LABEL = {
   puttFor: { E: "イーグル", Ba: "バーディ", P: "パー", Bo: "ボギー", "D+": "ダボ+" } as Record<string, string>,
   ud: { F: "平ら", U: "上り", D: "下り" } as Record<string, string>,

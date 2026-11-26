@@ -1,8 +1,9 @@
 /**
- * パッティングカード v3 の SVG を layout.ts の mm 座標から生成する（純粋関数・DOM 非依存）。
+ * パッティングカード v4 の SVG を layout.ts の mm 座標から生成する（純粋関数・DOM 非依存）。
+ * 1枚 = カードを開いた状態（上半分が1面目・下半分が2面目）。
  *
  * 用途:
- *  - 印刷用シート public/scorecard/putting-card-v3.html（scripts/scorecard/build-card.ts）
+ *  - 印刷用シート public/scorecard/putting-card-v4.html（scripts/scorecard/build-card.ts）
  *  - シートに載せる「記入例」
  *  - OCR テスト用の合成写真（scripts/scorecard/gen-fixtures.js）
  *
@@ -11,25 +12,33 @@
 import {
   CARD_H,
   CARD_W,
+  CHECK_PITCH,
+  CELL_PITCH,
   COLUMNS,
+  COLUMN_WIDTHS,
   COURSE_LINE,
   DATE_BOXES,
+  DATE_X,
+  FACE1_ROWS,
+  FACE_H,
+  FACE_ROWS_BOTTOM,
+  FACE_ROWS_TOP,
   GROUP_DIVIDERS,
-  HEADER_BAND,
+  HEADER_BANDS,
+  LINE_PITCH,
   MARKER_CENTERS,
   MARKER_SIZE,
   OPTION_PRINT_LABELS,
   ORIENTATION_KEY,
   ROWS,
-  ROWS_BOTTOM,
-  ROWS_TOP,
   ROW_COUNT,
-  ROW_PITCH,
   SIDE_CODE,
+  TABLE_X0,
+  TABLE_X1,
   decimalDotCenter,
   holeNumberFor,
-  rowCenterY,
   type CardSide,
+  type HeaderBand,
   type MmRect,
   LR_OPTIONS,
   MISS_OPTIONS,
@@ -155,93 +164,94 @@ function writeDigits(boxes: MmRect[], value: string | undefined, ink: string, de
 
 // ─── 印刷部分 ────────────────────────────────────────────────────────────────
 
+function holeRangeLabel(side: CardSide, face: 0 | 1): string {
+  const first = holeNumberFor(side, face === 0 ? 0 : FACE1_ROWS);
+  const last = holeNumberFor(side, face === 0 ? FACE1_ROWS - 1 : ROW_COUNT - 1);
+  return `${first}–${last}H`;
+}
+
 function printedHeader(side: CardSide): string {
   const out: string[] = [];
-  out.push(text(15.2, 7.9, "PUTTING CARD", `font-size="2.5" font-weight="700" letter-spacing="0.25"`));
-  out.push(text(15.2, 10.4, "Stroke Gained Putting v3", `font-size="1.5" fill="#555"`));
-  out.push(text(42.5, 9.0, side === "out" ? "OUT" : "IN", `font-size="5.2" font-weight="900"`));
-  out.push(text(side === "out" ? 53.6 : 50.4, 9.0, side === "out" ? "1–9H" : "10–18H", `font-size="2.3" font-weight="700"`));
+  out.push(text(15.2, 7.4, "PUTTING CARD", `font-size="2.5" font-weight="700" letter-spacing="0.25"`));
+  out.push(text(15.2, 9.8, "Stroke Gained Putting v4", `font-size="1.5" fill="#555"`));
+  out.push(text(40.5, 9.0, side === "out" ? "OUT" : "IN", `font-size="5.2" font-weight="900"`));
+  out.push(text(side === "out" ? 51.6 : 48.4, 9.0, holeRangeLabel(side, 0), `font-size="2.3" font-weight="700"`));
   // 面コード（OCR 用）
   SIDE_CODE.forEach((r, i) => {
     const filled = (side === "out" && i === 0) || (side === "in" && i === 1);
     out.push(rect(r, filled ? `fill="#000"` : `fill="#fff" stroke="#000" stroke-width="0.25"`));
   });
   if (side === "out") {
-    out.push(text(97.6, 8.4, "日付", `font-size="2.2" font-weight="700" text-anchor="end"`));
+    out.push(text(DATE_X - 1.4, 8.4, "日付", `font-size="2.2" font-weight="700" text-anchor="end"`));
     DATE_BOXES.forEach((r) => out.push(rect(r, `fill="#fff" stroke="#000" stroke-width="0.3"`)));
-    out.push(text(111.7, 8.6, "/", `font-size="3.2" text-anchor="middle"`));
-    out.push(text(99 + 2.9, 3.3, "月", `font-size="1.5" fill="#555" text-anchor="middle"`));
-    out.push(text(113.1 + 5.8, 3.3, "日", `font-size="1.5" fill="#555" text-anchor="middle"`));
-    out.push(text(COURSE_LINE.x - 1.2, 8.4, "コース", `font-size="2.2" font-weight="700" text-anchor="end"`));
-    out.push(`<line x1="${COURSE_LINE.x}" y1="${f(COURSE_LINE.y + COURSE_LINE.h)}" x2="${f(COURSE_LINE.x + COURSE_LINE.w)}" y2="${f(COURSE_LINE.y + COURSE_LINE.h)}" stroke="#000" stroke-width="0.3"/>`);
-  } else {
-    out.push(text(97.6, 8.4, "メモ", `font-size="2.2" font-weight="700" text-anchor="end"`));
-    out.push(`<line x1="99" y1="9.6" x2="165" y2="9.6" stroke="#999" stroke-width="0.25" stroke-dasharray="0.8 0.8"/>`);
+    out.push(text(DATE_BOXES[1].x + DATE_BOXES[1].w + 1.4, 8.6, "/", `font-size="3.2" text-anchor="middle"`));
+    out.push(text(DATE_X + 5.5, 3.3, "月", `font-size="1.5" fill="#555" text-anchor="middle"`));
+    out.push(text(DATE_BOXES[2].x + 5.5, 3.3, "日", `font-size="1.5" fill="#555" text-anchor="middle"`));
   }
+  out.push(text(COURSE_LINE.x - 1.2, 8.4, side === "out" ? "コース" : "メモ", `font-size="2.2" font-weight="700" text-anchor="end"`));
+  out.push(`<line x1="${f(COURSE_LINE.x)}" y1="${f(COURSE_LINE.y + COURSE_LINE.h)}" x2="${f(COURSE_LINE.x + COURSE_LINE.w)}" y2="${f(COURSE_LINE.y + COURSE_LINE.h)}" stroke="#000" stroke-width="0.3"/>`);
+  // 2面目の見出し（折ったとき裏面の上端に来る）
+  out.push(text(TABLE_X0, FACE_H + 6.6, `${side === "out" ? "OUT" : "IN"} ${holeRangeLabel(side, 1)}`, `font-size="3.4" font-weight="900"`));
+  out.push(text(TABLE_X0 + 26, FACE_H + 6.4, "裏面（縦にめくる）", `font-size="1.9" fill="#555"`));
   return out.join("");
 }
 
-function printedColumnHeader(): string {
+function printedColumnHeader(g: HeaderBand): string {
   const out: string[] = [];
-  const g = HEADER_BAND;
-  const groupLabel = (x0: number, x1: number, s: string) =>
-    centerText({ x: x0, y: g.groupY, w: x1 - x0, h: g.groupH }, s, 2.3, `font-weight="700"`);
-  const optionLabels = (x0: number, pitch: number, labels: readonly string[], size = 2.3) =>
-    labels.map((l, i) => centerText({ x: x0 + i * pitch, y: g.optionY, w: pitch, h: g.optionH }, l, size, `font-weight="700"`)).join("");
+  const groupLabel = (x0: number, w: number, s: string) =>
+    centerText({ x: x0, y: g.groupY, w, h: g.groupH }, s, 2.2, `font-weight="700"`);
+  const optionLabels = (x0: number, labels: readonly string[], size = 2.3) =>
+    labels.map((l, i) => centerText({ x: x0 + i * CHECK_PITCH, y: g.optionY, w: CHECK_PITCH, h: g.optionH }, l, size, `font-weight="700"`)).join("");
 
-  // グループ見出しの背景
-  out.push(rect({ x: 4, y: g.groupY, w: 162.5, h: g.groupH + g.optionH }, `fill="#E9E9E9"`));
-  out.push(centerText({ x: 4, y: g.groupY, w: 9.5, h: g.groupH + g.optionH }, "H", 3, `font-weight="900"`));
-  out.push(groupLabel(13.5, 39.3, "何のパット？"));
-  out.push(groupLabel(39.3, 95.4, "1st パット"));
-  out.push(groupLabel(95.4, 142.2, "2nd パット"));
-  out.push(groupLabel(142.2, 157.7, "3rd"));
-  out.push(groupLabel(157.7, 166.5, "計"));
-
-  out.push(optionLabels(COLUMNS.puttFor, 4.8, OPTION_PRINT_LABELS.puttFor, 2.1));
-  out.push(centerText({ x: COLUMNS.p1Dist, y: g.optionY, w: 11.6, h: g.optionH }, "距離 m", 2.1, `font-weight="700"`));
-  out.push(optionLabels(COLUMNS.p1UD, 4.8, OPTION_PRINT_LABELS.ud));
-  out.push(optionLabels(COLUMNS.p1LR, 4.8, OPTION_PRINT_LABELS.lr));
-  out.push(optionLabels(COLUMNS.p1Miss, 4.8, OPTION_PRINT_LABELS.miss));
-  out.push(centerText({ x: COLUMNS.p2Dist, y: g.optionY, w: 13, h: g.optionH }, "距離 m", 2.1, `font-weight="700"`));
-  out.push(optionLabels(COLUMNS.p2UD, 4.8, OPTION_PRINT_LABELS.ud));
-  out.push(optionLabels(COLUMNS.p2LR, 4.8, OPTION_PRINT_LABELS.lr));
-  out.push(centerText({ x: COLUMNS.p3Dist, y: g.optionY, w: 13, h: g.optionH }, "距離 m", 2.1, `font-weight="700"`));
-  out.push(centerText({ x: COLUMNS.total, y: g.optionY, w: 6.4, h: g.optionH }, "打", 2.1, `font-weight="700"`));
-
-  // 小見出しの細い下線（傾斜 / 曲がり / 外れ の区切り）
-  const underline = (x0: number, x1: number) =>
-    `<line x1="${f(x0 + 0.5)}" y1="${f(g.optionY + 0.2)}" x2="${f(x1 - 0.5)}" y2="${f(g.optionY + 0.2)}" stroke="#777" stroke-width="0.2"/>`;
-  out.push(underline(COLUMNS.p1UD, COLUMNS.p1UD + 14.4));
-  out.push(underline(COLUMNS.p1LR, COLUMNS.p1LR + 14.4));
-  out.push(underline(COLUMNS.p1Miss, COLUMNS.p1Miss + 9.6));
-  out.push(underline(COLUMNS.p2UD, COLUMNS.p2UD + 14.4));
-  out.push(underline(COLUMNS.p2LR, COLUMNS.p2LR + 14.4));
+  out.push(rect({ x: TABLE_X0, y: g.groupY, w: TABLE_X1 - TABLE_X0, h: g.groupH + g.optionH }, `fill="#E9E9E9"`));
+  out.push(centerText({ x: COLUMNS.hole.x, y: g.groupY, w: COLUMNS.hole.w, h: g.groupH + g.optionH }, "H", 3, `font-weight="900"`));
+  out.push(groupLabel(COLUMNS.puttFor, COLUMN_WIDTHS.puttFor, "何のパット？"));
+  out.push(groupLabel(COLUMNS.p1Dist, COLUMN_WIDTHS.dist, "距離 m"));
+  out.push(groupLabel(COLUMNS.p1UD, COLUMN_WIDTHS.ud, "傾斜"));
+  out.push(groupLabel(COLUMNS.p1LR, COLUMN_WIDTHS.lr, "曲がり"));
+  out.push(groupLabel(COLUMNS.p1Miss, COLUMN_WIDTHS.miss, "外れ"));
+  out.push(optionLabels(COLUMNS.puttFor, OPTION_PRINT_LABELS.puttFor, 2.1));
+  out.push(centerText({ x: COLUMNS.p1Dist, y: g.optionY, w: COLUMN_WIDTHS.dist, h: g.optionH }, "1st 整数 / 2nd 小数", 1.7, `font-weight="700"`));
+  out.push(optionLabels(COLUMNS.p1UD, OPTION_PRINT_LABELS.ud));
+  out.push(optionLabels(COLUMNS.p1LR, OPTION_PRINT_LABELS.lr));
+  out.push(optionLabels(COLUMNS.p1Miss, OPTION_PRINT_LABELS.miss));
   return out.join("");
 }
 
 function printedRows(side: CardSide): string {
   const out: string[] = [];
   const box = `fill="#fff" stroke="#000" stroke-width="0.3"`;
+  const small = `font-size="2" font-weight="700" fill="#333"`;
   ROWS.forEach((row, i) => {
-    if (i % 2 === 1) out.push(rect({ x: 4, y: row.band.y, w: 162.5, h: row.band.h }, `fill="#F1F1F1"`));
-    out.push(centerText({ x: 4, y: row.band.y, w: 9.5, h: row.band.h }, String(holeNumberFor(side, i)), 4.2, `font-weight="900"`));
+    if (i % 2 === 1) out.push(rect(row.band, `fill="#F1F1F1"`));
+    out.push(centerText(row.holeLabel, String(holeNumberFor(side, i)), 4.6, `font-weight="900"`));
+    // 段の見出し
+    out.push(text(COLUMNS.lineLabel.x + COLUMNS.lineLabel.w / 2, row.line1Y + 0.8, "1st", `${small} text-anchor="middle"`));
+    out.push(text(COLUMNS.lineLabel.x + COLUMNS.lineLabel.w / 2, row.line2Y + 0.8, "2nd", `${small} text-anchor="middle"`));
+    out.push(text(COLUMNS.p3Label, row.line2Y + 0.8, "3rd", small));
+    out.push(text(COLUMNS.totalLabel, row.line2Y + 0.8, "計", `font-size="2.4" font-weight="900"`));
     for (const r of [...row.puttFor, ...row.p1.ud, ...row.p1.lr, ...row.p1.miss, ...row.p2.ud, ...row.p2.lr]) out.push(rect(r, box));
     for (const r of [...row.p1.dist, ...row.p2.dist, ...row.p3.dist, row.total]) out.push(rect(r, box));
-    const cy = rowCenterY(i);
     for (const x0 of [COLUMNS.p2Dist, COLUMNS.p3Dist]) {
-      const d = decimalDotCenter(x0, cy);
+      const d = decimalDotCenter(x0, row.line2Y);
       out.push(`<circle cx="${f(d.x)}" cy="${f(d.y)}" r="0.45" fill="#000"/>`);
     }
+    // 段の間の細い点線（1ホールの中の区切り）
+    out.push(`<line x1="${f(COLUMNS.lineLabel.x)}" y1="${f(row.band.y + LINE_PITCH)}" x2="${f(TABLE_X1)}" y2="${f(row.band.y + LINE_PITCH)}" stroke="#BBB" stroke-width="0.15" stroke-dasharray="0.6 0.6"/>`);
   });
-  // 行の区切り
-  for (let i = 0; i <= ROW_COUNT; i++) {
-    const y = ROWS_TOP + ROW_PITCH * i;
-    out.push(`<line x1="4" y1="${f(y)}" x2="166.5" y2="${f(y)}" stroke="${i === 0 || i === ROW_COUNT ? "#000" : "#BBB"}" stroke-width="${i === 0 || i === ROW_COUNT ? 0.35 : 0.15}"/>`);
-  }
-  // グループの区切り
-  for (const x of GROUP_DIVIDERS) {
-    out.push(`<line x1="${f(x)}" y1="${f(HEADER_BAND.groupY)}" x2="${f(x)}" y2="${f(ROWS_BOTTOM)}" stroke="#000" stroke-width="0.3"/>`);
+  // ホールの区切りと面ごとの縦の区切り
+  for (const face of [0, 1] as const) {
+    const top = FACE_ROWS_TOP[face];
+    const count = face === 0 ? FACE1_ROWS : ROW_COUNT - FACE1_ROWS;
+    for (let k = 0; k <= count; k++) {
+      const y = top + LINE_PITCH * 2 * k;
+      const edge = k === 0 || k === count;
+      out.push(`<line x1="${f(TABLE_X0)}" y1="${f(y)}" x2="${f(TABLE_X1)}" y2="${f(y)}" stroke="${edge ? "#000" : "#888"}" stroke-width="${edge ? 0.35 : 0.2}"/>`);
+    }
+    const g = HEADER_BANDS[face];
+    for (const x of GROUP_DIVIDERS) {
+      out.push(`<line x1="${f(x)}" y1="${f(g.groupY)}" x2="${f(x)}" y2="${f(FACE_ROWS_BOTTOM[face])}" stroke="#000" stroke-width="0.3"/>`);
+    }
   }
   return out.join("");
 }
@@ -249,9 +259,15 @@ function printedRows(side: CardSide): string {
 function printedFooter(): string {
   const out: string[] = [];
   const small = `font-size="1.95" fill="#222"`;
-  out.push(text(10.5, 93.0, "何のパット＝1打目のパットが入れば何のスコアか（E イーグル / Ba バーディ / P パー / Bo ボギー / D+ ダボ以上）", small));
-  out.push(text(10.5, 95.9, "平上下＝上り下り　直左右＝曲がる向き　短長＝外れた1stがショートかオーバーか　計＝そのホールの総パット数", small));
-  out.push(text(10.5, 100.6, "✓は枠の中に／数字は1枠に1字（2nd・3rd は 1.5 のように小数1桁）／四隅の■を入れて真上から撮影", `font-size="1.95" font-weight="700"`));
+  const y0 = FACE_ROWS_BOTTOM[1] + 4;
+  out.push(text(TABLE_X0, y0, "何のパット＝1打目のパットが入れば何のスコアか（E イーグル / Ba バーディ / P パー / Bo ボギー / D+ ダボ以上）", small));
+  out.push(text(TABLE_X0, y0 + 2.9, "平上下＝上り下り　直左右＝曲がる向き　外れ＝1st がショート（短）かオーバー（長）か　計＝そのホールの総パット数", small));
+  out.push(text(TABLE_X0, y0 + 5.8, "✓は枠の中に／数字は1枠に1字（2nd・3rd は 1.5 のように小数1桁）", small));
+  out.push(text(TABLE_X0, y0 + 9.2, "撮影はカードを開いて1枚。四隅の■を入れて真上から", `font-size="2.1" font-weight="700"`));
+  // 折り線の目印（表の外側の左右だけ。表の中には引かない）
+  for (const [x1, x2] of [[0, 2], [CARD_W - 2, CARD_W]]) {
+    out.push(`<line x1="${f(x1)}" y1="${f(FACE_H)}" x2="${f(x2)}" y2="${f(FACE_H)}" stroke="#999" stroke-width="0.2"/>`);
+  }
   return out.join("");
 }
 
@@ -321,7 +337,8 @@ export function buildCardSvg(side: CardSide, opts: CardSvgOptions = {}): string 
     opts.outline ? rect({ x: 0.15, y: 0.15, w: CARD_W - 0.3, h: CARD_H - 0.3 }, `fill="none" stroke="#999" stroke-width="0.2" rx="2"`) : "",
     printedMarkers(),
     printedHeader(side),
-    printedColumnHeader(),
+    printedColumnHeader(HEADER_BANDS[0]),
+    printedColumnHeader(HEADER_BANDS[1]),
     printedRows(side),
     printedFooter(),
     opts.fill ? handwriting(side, opts.fill) : "",

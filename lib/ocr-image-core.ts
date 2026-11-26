@@ -172,11 +172,14 @@ export type MarkerDetection = {
 
 /**
  * 四隅の■マークを検出する。
- * @param gray 元画像のグレースケール（縮小前でよい。内部で ~640px 幅に縮小する）
+ * @param gray 元画像のグレースケール（縮小前でよい。内部で長い辺 ~640px に縮小する）
  * @param expectedAspect マーク中心矩形の 高さ/幅（レイアウトから）
  */
 export function findCornerMarkers(gray: GrayImage, expectedAspect: number): MarkerDetection | null {
-  const { image: small, scale } = downscaleGray(gray, 640);
+  // 長い辺を約640px にそろえる。横幅基準だと縦長の写真（カード v4 は開くと縦長）が縮小されず、
+  // 罫線や文字の塊が多すぎて候補の上限に達し、下側の■まで調べられないことがあった
+  const longSide = Math.max(gray.width, gray.height);
+  const { image: small, scale } = downscaleGray(gray, Math.round((640 * gray.width) / longSide));
   const { width: w, height: h, data } = small;
   const threshold = otsuThreshold(small);
   // 紙は明るく、マークは最も暗い部類。Otsu より少し厳しめにして罫線・文字の連結を減らす

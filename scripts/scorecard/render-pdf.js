@@ -30,8 +30,8 @@ async function staticFontFaces() {
 }
 
 (async () => {
-  const html = path.resolve(__dirname, "../../public/scorecard/putting-card-v3.html");
-  const out = path.resolve(__dirname, "../../public/scorecard/putting-card-v3.pdf");
+  const html = path.resolve(__dirname, "../../public/scorecard/putting-card-v4.html");
+  const out = path.resolve(__dirname, "../../public/scorecard/putting-card-v4.pdf");
   const faces = await staticFontFaces();
   const browser = await chromium.launch({ channel: "msedge", headless: true });
   const page = await browser.newPage();

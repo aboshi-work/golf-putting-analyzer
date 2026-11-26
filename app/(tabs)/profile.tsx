@@ -388,7 +388,7 @@ export default function ProfileScreen() {
             <View className="bg-surface rounded-2xl p-4 border border-border" style={cardShadow}>
               <Text className="text-lg font-semibold text-foreground mb-1">パッティングカード</Text>
               <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 12 }}>
-                A4に印刷して二つ折り（175×105mm・ポケットサイズ）。表がOUT、裏がIN。1枚で18ホール記録できます。
+                A4 2枚に印刷して、OUT 用と IN 用のカードを作ります。それぞれ二つ折りで 170×102mm（ポケットサイズ）。1ホール2段で、全パットの距離・傾斜・曲がりを書けます。
               </Text>
               <TouchableOpacity
                 onPress={() => void openPrintCard()}

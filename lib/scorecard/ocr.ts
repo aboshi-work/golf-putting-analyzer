@@ -1,5 +1,5 @@
 /**
- * カード v3 の読み取り結果（LLM + 画素判定）の型・正規化・統合・検証・アプリデータへの変換。
+ * カード v4（項目は v3 と同じ）の読み取り結果（LLM + 画素判定）の型・正規化・統合・検証・アプリデータへの変換。
  * サーバー（server/routers.ts）と確認画面（app/ocr-review.tsx）の両方で使う。
  */
 import { buildHole } from "../putting";

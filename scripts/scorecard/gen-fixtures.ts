@@ -1,19 +1,18 @@
 /**
  * OCR テスト用の「合成写真」を作る。
- * カード v3 の SVG に手書き風の記入を重ね、CSS 3D 変形・回転・照明ムラを付けてスクリーンショットする。
+ * カード v4（開いた状態）の SVG に手書き風の記入を重ね、CSS 3D 変形・回転・照明ムラを付けてスクリーンショットする。
  *
- *   (scratchpad で npm i playwright@1.52.0)
- *   NODE_PATH=<scratchpad>/node_modules npx tsx scripts/scorecard/gen-fixtures.ts [出力先]
+ *   npx tsx scripts/scorecard/gen-fixtures.ts [出力先]   （SET=stress で悪条件の写真、ONLY=名前 で1件だけ）
+ *   撮影は Microsoft Edge のヘッドレス（scripts/scorecard/edge-shot.ts）
  *
- * 出力: tests/fixtures/card-v3-*.png と正解 *.json（lib/__tests__/scorecard-process.test.ts が使う）
+ * 出力: tests/fixtures/card-v4-*.png と正解 *.json（lib/__tests__/scorecard-process.test.ts が使う）
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildCardSvg, type CardFill } from "../../lib/scorecard/card-svg";
-import type { CardSide } from "../../lib/scorecard/layout";
+import { CARD_H, CARD_W, type CardSide } from "../../lib/scorecard/layout";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { chromium } = require("playwright");
+import { edgeScreenshot } from "./edge-shot";
 
 const OUT_DIR = process.argv[2] || path.resolve(__dirname, "../../tests/fixtures");
 
@@ -69,66 +68,61 @@ const IN_FILL: CardFill = {
 
 const CASES: Case[] = [
   {
-    name: "card-v3-out-pen",
+    name: "card-v4-out-pen",
     side: "out",
     fill: OUT_FILL,
     transform: "perspective(1600px) rotateX(10deg) rotateY(-8deg) rotateZ(3deg) scale(0.9)",
-    viewport: { width: 1500, height: 1100 },
+    viewport: { width: 1100, height: 1500 },
   },
   {
-    name: "card-v3-in-pencil-180",
+    name: "card-v4-in-pencil-180",
     side: "in",
     fill: IN_FILL,
     transform: "perspective(1500px) rotateX(-7deg) rotateY(9deg) rotateZ(178deg) scale(0.93)",
-    viewport: { width: 1500, height: 1100 },
+    viewport: { width: 1100, height: 1500 },
     shade: true,
   },
   {
-    name: "card-v3-out-rot90",
+    name: "card-v4-out-rot90",
     side: "out",
     fill: { ...OUT_FILL, ink: "pen", markStyles: { "2.puttFor": "circle", "4.p1.lr": "fill" } },
     transform: "perspective(1700px) rotateX(6deg) rotateY(5deg) rotateZ(-88deg) scale(0.78)",
-    viewport: { width: 1100, height: 1500 },
+    viewport: { width: 1500, height: 1100 },
     shade: true,
   },
 ];
 
 // 悪条件の写真（精度の実力を測るため。単体テストでは使わず eval-ocr で測る）
 const STRESS_CASES: Case[] = [
-  { name: "stress-messy-pen", side: "out", fill: { ...OUT_FILL, messy: 7 }, transform: "perspective(1500px) rotateX(12deg) rotateY(-9deg) rotateZ(4deg) scale(0.9)", viewport: { width: 1500, height: 1100 } },
-  { name: "stress-messy-pencil", side: "in", fill: { ...IN_FILL, messy: 11 }, transform: "perspective(1500px) rotateX(-8deg) rotateY(10deg) rotateZ(-3deg) scale(0.9)", viewport: { width: 1500, height: 1100 }, shade: true },
-  { name: "stress-far", side: "out", fill: { ...OUT_FILL, messy: 3 }, transform: "perspective(1500px) rotateX(8deg) rotateZ(-5deg) scale(0.42)", viewport: { width: 1500, height: 1100 } },
-  { name: "stress-blur", side: "in", fill: { ...IN_FILL, messy: 5 }, transform: "perspective(1500px) rotateX(6deg) rotateY(6deg) scale(0.85)", viewport: { width: 1500, height: 1100 }, filter: "blur(1.6px)" },
-  { name: "stress-glare-dark", side: "out", fill: { ...OUT_FILL, messy: 9, ink: "pencil" }, transform: "perspective(1500px) rotateX(9deg) rotateY(-6deg) rotateZ(2deg) scale(0.88)", viewport: { width: 1500, height: 1100 }, filter: "brightness(0.62) contrast(0.85)", overlay: "radial-gradient(circle at 70% 35%, rgba(255,255,255,.85) 0, rgba(255,255,255,.35) 18%, rgba(255,255,255,0) 38%)" },
-  { name: "stress-steep", side: "in", fill: { ...IN_FILL, messy: 13, ink: "pen" }, transform: "perspective(1100px) rotateX(38deg) rotateY(-18deg) rotateZ(6deg) scale(0.95)", viewport: { width: 1500, height: 1100 } },
+  { name: "stress-messy-pen", side: "out", fill: { ...OUT_FILL, messy: 7 }, transform: "perspective(1500px) rotateX(12deg) rotateY(-9deg) rotateZ(4deg) scale(0.9)", viewport: { width: 1100, height: 1500 } },
+  { name: "stress-messy-pencil", side: "in", fill: { ...IN_FILL, messy: 11 }, transform: "perspective(1500px) rotateX(-8deg) rotateY(10deg) rotateZ(-3deg) scale(0.9)", viewport: { width: 1100, height: 1500 }, shade: true },
+  { name: "stress-far", side: "out", fill: { ...OUT_FILL, messy: 3 }, transform: "perspective(1500px) rotateX(8deg) rotateZ(-5deg) scale(0.42)", viewport: { width: 1100, height: 1500 } },
+  { name: "stress-blur", side: "in", fill: { ...IN_FILL, messy: 5 }, transform: "perspective(1500px) rotateX(6deg) rotateY(6deg) scale(0.85)", viewport: { width: 1100, height: 1500 }, filter: "blur(1.6px)" },
+  { name: "stress-glare-dark", side: "out", fill: { ...OUT_FILL, messy: 9, ink: "pencil" }, transform: "perspective(1500px) rotateX(9deg) rotateY(-6deg) rotateZ(2deg) scale(0.88)", viewport: { width: 1100, height: 1500 }, filter: "brightness(0.62) contrast(0.85)", overlay: "radial-gradient(circle at 70% 35%, rgba(255,255,255,.85) 0, rgba(255,255,255,.35) 18%, rgba(255,255,255,0) 38%)" },
+  { name: "stress-steep", side: "in", fill: { ...IN_FILL, messy: 13, ink: "pen" }, transform: "perspective(1100px) rotateX(38deg) rotateY(-18deg) rotateZ(6deg) scale(0.95)", viewport: { width: 1100, height: 1500 } },
 ];
 
 async function main() {
   const set = process.env.SET === "stress" ? STRESS_CASES : CASES;
   const outDir = process.env.SET === "stress" ? path.join(OUT_DIR, "stress") : OUT_DIR;
   mkdirSync(outDir, { recursive: true });
-  const browser = await chromium.launch({ channel: "msedge", headless: true });
   const only = process.env.ONLY;
   for (const c of set.filter((x) => !only || x.name === only)) {
-    const page = await browser.newPage({ viewport: c.viewport, deviceScaleFactor: 1 });
-    const svg = buildCardSvg(c.side, { fill: c.fill, width: "1240px", height: `${(1240 * 105) / 175}px` });
-    await page.setContent(`<!DOCTYPE html><html><head>
+    // 開いたカードは縦長なので、高さ 1000px 前後に収める
+    const svg = buildCardSvg(c.side, { fill: c.fill, width: "840px", height: `${(840 * CARD_H) / CARD_W}px` });
+    const html = `<!DOCTYPE html><html><head>
       <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Kalam:wght@700&family=Patrick+Hand&family=Reenie+Beanie&family=Nanum+Pen+Script&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
       <style>
         html,body{margin:0;height:100%;background:radial-gradient(circle at 30% 20%,#9b8b77,#6f6150);display:flex;align-items:center;justify-content:center;overflow:hidden}
         .card{transform:${c.transform};transform-origin:center;box-shadow:0 10px 26px rgba(0,0,0,.45);position:relative;line-height:0;${c.filter ? `filter:${c.filter};` : ""}}
         .glare{position:absolute;inset:0;background:${c.overlay ?? "none"};pointer-events:none}
         .shade{position:absolute;inset:0;background:linear-gradient(100deg,rgba(0,0,0,0) 35%,rgba(40,30,20,.28) 100%);pointer-events:none}
-      </style></head><body><div class="card">${svg}${c.shade ? '<div class="shade"></div>' : ""}${c.overlay ? '<div class="glare"></div>' : ""}</div></body></html>`);
-    await page.evaluate(() => (document as unknown as { fonts: { ready: Promise<unknown> } }).fonts.ready);
-    await page.waitForTimeout(400);
+      </style></head><body><div class="card">${svg}${c.shade ? '<div class="shade"></div>' : ""}${c.overlay ? '<div class="glare"></div>' : ""}</div></body></html>`;
     const png = path.join(outDir, `${c.name}.png`);
-    await page.screenshot({ path: png, type: "png" });
+    edgeScreenshot(html, c.viewport.width, c.viewport.height, png);
     writeFileSync(path.join(outDir, `${c.name}.json`), JSON.stringify({ side: c.side, fill: c.fill }, null, 2));
     console.log("wrote", png);
-    await page.close();
   }
-  await browser.close();
 }
 
 main().catch((e) => {

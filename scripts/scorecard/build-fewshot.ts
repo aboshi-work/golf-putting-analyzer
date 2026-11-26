@@ -2,14 +2,17 @@
  * OCR のお手本（記入済みカード画像＋正解 JSON）を生成し server/_core/card-fewshot.ts に埋め込む。
  * Vercel の関数バンドルに確実に含めるため base64 で保持する。
  *
- *   NODE_PATH=<scratchpad>/node_modules npx tsx scripts/scorecard/build-fewshot.ts
+ *   npx tsx scripts/scorecard/build-fewshot.ts   （撮影は Microsoft Edge のヘッドレス）
  */
-import { writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { buildCardSvg, fillToOcrCard, type CardFill } from "../../lib/scorecard/card-svg";
+import { CARD_H, CARD_W } from "../../lib/scorecard/layout";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { chromium } = require("playwright");
+import { encodeJpegBase64 } from "../../server/_core/card-image";
+import { decodePng } from "../../tests/helpers/png";
+import { edgeScreenshot } from "./edge-shot";
 
 const FILL: CardFill = {
   date: "0612",
@@ -31,20 +34,24 @@ const FILL: CardFill = {
 };
 
 async function main() {
-  const browser = await chromium.launch({ channel: "msedge", headless: true });
-  const page = await browser.newPage({ viewport: { width: 1750, height: 1050 }, deviceScaleFactor: 1 });
-  await page.setContent(`<!DOCTYPE html><html><head>
+  const W = CARD_W * 10;
+  const H = CARD_H * 10;
+  const png = path.join(mkdtempSync(path.join(os.tmpdir(), "fewshot-")), "fewshot.png");
+  edgeScreenshot(
+    `<!DOCTYPE html><html><head>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
     <style>html,body{margin:0}svg{display:block}</style></head>
-    <body>${buildCardSvg("out", { fill: FILL, width: "1750px", height: "1050px" })}</body></html>`);
-  await page.evaluate(() => (document as unknown as { fonts: { ready: Promise<unknown> } }).fonts.ready);
-  await page.waitForTimeout(300);
-  const buf: Buffer = await page.screenshot({ type: "jpeg", quality: 72 });
-  await browser.close();
+    <body>${buildCardSvg("out", { fill: FILL, width: `${W}px`, height: `${H}px` })}</body></html>`,
+    W,
+    H,
+    png,
+  );
+  const b64 = encodeJpegBase64(decodePng(readFileSync(png)), 72);
+  const buf = Buffer.from(b64, "base64");
 
   const answer = fillToOcrCard("out", FILL);
   const out = `/**
- * OCR のお手本: 記入済みカード v3（OUT 面）の補正済み画像と、その正しい読み取り結果。
+ * OCR のお手本: 記入済みカード v4（OUT カード）の補正済み画像と、その正しい読み取り結果。
  * scripts/scorecard/build-fewshot.ts が生成（手で編集しない）。
  */
 import type { OcrCard } from "../../lib/scorecard/ocr";
