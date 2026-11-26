@@ -3,7 +3,7 @@
 ## 現在の状態
 
 - 作業ブランチ: `fable5/v3-card-analytics-3d`（`fable5/gemini3-ui-refresh` から分岐。2026-09-25 の v3 改修）
-- GitHub: `aboshiDaisuke/putting-analyzer-v2`
+- GitHub: `aboshi-work/putting-analyzer-v2`（2026-11 に `aboshiDaisuke/` から移動。古い URL は GitHub が転送する）
 - ドラフトPR: https://github.com/aboshiDaisuke/putting-analyzer-v2/pull/1
 - Supabase project ref: `ijrrzinlhqhinlmzunzn` (`putting-analyzer`)
 - 本番: https://putting-analyzer-v2.vercel.app/
@@ -45,7 +45,18 @@
 - **デモモード**: ログイン画面「ログインせずにデモを見る」。`lib/demo-mode.ts`（メモリ上のストア）＋ `lib/demo-data.ts`。
   Supabase 停止中の画面確認にも使える（localStorage `putting_analyzer_demo_mode=1`）
 
-## 2026-09-25 夕方の中断時点（最優先で続きをやる）
+## 2026-11-26 の状態（最優先）
+
+- **本番は止まっている**: /api/health が DB に届かない（tenant not found）。停止防止が main に無いので Supabase が停止したとみられる。
+  停止から1年以内はダッシュボードの Restore で戻せる（データは残る）
+- **Vercel と GitHub の連携が切れている可能性**: リポジトリ移動後のプッシュ（61b3007）で Vercel のプレビューが作られていない。
+  Vercel の Settings → Git でリポジトリをつなぎ直す
+- **読み取りモデルを変更（61b3007）**: 既定を `gemini-3.1-flash-lite`＋確認用 `gemini-3.5-flash-lite` に。`gemini-3.5-flash` は廃止で 503 が続き、
+  1枚 90〜220 秒かかっていた。評価 275/275・悪条件 456/458（誤読は全て要確認に表示）、1枚 7〜9 秒、1回 入力約1.3万/出力約1,100 トークン。
+  Vercel の環境変数に GEMINI_MODEL / OCR_VERIFY_MODEL が入っていたら、こちらに合わせるか消す
+- 次: ① Supabase Restore → ② Vercel の連携を直してプレビュー確認 → ③ main に再マージ（revert の revert）→ ④ 本番で通し確認・cron と keep-alive の動作確認
+
+## 2026-09-25 夕方の中断時点
 
 - **本番は旧版に戻してある**: PR #1 は一度マージ（`e67f518`）したが本番の API が全滅したため revert（GitHub の main = `3c8f4cc`）。
   旧版でデータ API 200 を確認済み。DB（0003〜0005・RLS）は旧版とも互換。**停止防止 cron は本番で未有効のまま**。
@@ -54,10 +65,10 @@
   修正 `1496860`（JWT の exp を自前で読む）を作業ブランチにプッシュ済み。プレビューの health / golf.rounds.list は 200
 - **OCR の 504 対策をプッシュ済み（`6b6081c`）**: 思考量を minimal（`OCR_THINKING`、評価 275/275・1枚 30〜43 秒。low でも 89 秒だった）、
   `vercel.json` の api の `maxDuration` を 300（プロジェクトは Fluid compute で上限 300 秒）。flash-lite 単独は 10〜17 秒だが 271/275
-- **次回やること**: ① プレビューで `ocr.analyzeCard` が 200 になるか確認（未確認。`scripts/_tmp/mk-req.ts` は環境変数 E2E_EMAIL / E2E_PASSWORD が必要＝.env には無い）
+- **次回やること**: ① プレビューで `ocr.analyzeCard` が 200 になるか確認（未確認。`scripts/check/smoke-ocr.ts` は環境変数 E2E_EMAIL / E2E_PASSWORD が必要＝.env には無い）
   ② 問題なければ main に再マージ（revert の revert が必要）→ 本番で通し確認・停止防止 cron の有効化を確認
 - プレビューは保護付きなので `vercel curl` で叩く。その際 Vercel に「Protection Bypass for Automation」トークンが自動作成された（不要なら Settings → Deployment Protection で削除）
-- `scripts/_tmp/` は検証用の一時スクリプト（`prod-ocr.ts` で本番/プレビューの OCR 所要時間を測れる。コミットしない・作業後に削除）
+- 本番/プレビューの確認スクリプトは `scripts/check/`（smoke-ocr.ts = 読み取り API の所要時間、smoke-api.ts = データ API、vercel-local.ts = 関数の単体起動）
 
 ## 次にやること
 
