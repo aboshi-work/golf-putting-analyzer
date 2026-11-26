@@ -7,7 +7,7 @@
  *   4. 距離帯別の SG / 距離別カップイン率 / ロングパットの寄せ / ライン別 / 何のパット別 / 推移 / 条件別
  * 集計ロジックは lib/putting-stats.ts、考え方は docs/ANALYTICS.md。
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -22,6 +22,7 @@ import { useBaseline } from "@/hooks/use-baseline";
 import { getRoundsWithHoles, getUserProfile } from "@/lib/storage";
 import {
   BASELINES,
+  detailStats,
   greenPoints,
   groupSg,
   holeObservations,
@@ -36,6 +37,7 @@ import {
   sgSummary,
   stimpBand,
   type BaselineId,
+  type DetailStats,
 } from "@/lib/putting-stats";
 import { LABELS, type Round, type ScoreResult } from "@/lib/types";
 
@@ -117,10 +119,16 @@ export default function AnalyticsScreen() {
       speeds: groupSg(holes, (r) => stimpBand(r.stimpmeter)),
       grass: groupSg(holes, (r) => (r.grassType ? LABELS.grassType[r.grassType] : null)),
       courses: groupSg(holes, (r) => r.courseName || null),
+      detail: detailStats(holes),
     };
   }, [rounds, period, baseline]);
 
   const base = BASELINES[baseline];
+
+  const scrollRef = useRef<ScrollView>(null);
+  /** 各セクションの y 位置（目次からのスクロール先） */
+  const sectionY = useRef<Partial<Record<SectionId, number>>>({});
+  const [showToc, setShowToc] = useState(false);
 
   if (loading) {
     return (
@@ -130,9 +138,24 @@ export default function AnalyticsScreen() {
     );
   }
 
+  const anchor = (id: SectionId) => ({ onLayout: (e: { nativeEvent: { layout: { y: number } } }) => (sectionY.current[id] = e.nativeEvent.layout.y) });
+  const jump = (id: SectionId | "top") => {
+    const y = id === "top" ? 0 : Math.max(0, (sectionY.current[id] ?? 0) - 8);
+    scrollRef.current?.scrollTo({ y, animated: true });
+  };
+
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40, alignItems: "center" }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={{ paddingBottom: 40, alignItems: "center" }}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={100}
+        onScroll={(e) => {
+          const down = e.nativeEvent.contentOffset.y > 700;
+          if (down !== showToc) setShowToc(down);
+        }}
+      >
         <View style={{ width: contentW, gap: 16, paddingTop: 12 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 28, fontWeight: "900", letterSpacing: -0.6 }}>
@@ -160,10 +183,24 @@ export default function AnalyticsScreen() {
             <EmptyState onNew={() => router.push("/new-round" as never)} />
           ) : (
             <>
-              <SgHero sg={data.sg} baselineLabel={base.label} rounds={data.scoped.length} />
-              <GreenMapCard points={data.points} />
-              <PrioritiesCard priorities={data.priorities} baselineLabel={base.short} />
+              {/* 目次: 押すとそのセクションまでスクロール */}
+              <View {...anchor("toc")} style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "700", marginRight: 2 }}>目次</Text>
+                {SECTIONS.map((sct) => (
+                  <Chip key={sct.id} label={sct.label} selected={false} onPress={() => jump(sct.id)} />
+                ))}
+              </View>
+              <View {...anchor("summary")}>
+                <SgHero sg={data.sg} baselineLabel={base.label} rounds={data.scoped.length} />
+              </View>
+              <View {...anchor("map")}>
+                <GreenMapCard points={data.points} />
+              </View>
+              <View {...anchor("practice")}>
+                <PrioritiesCard priorities={data.priorities} baselineLabel={base.short} />
+              </View>
 
+              <View {...anchor("band")}>
               <Card>
                 <SectionTitle title="どの距離で得/損しているか" subtitle={`1打ごとの損得を打つ前の距離で分けて合計（1ラウンドあたり・${base.short}比）`} />
                 <DivergingBars
@@ -174,7 +211,9 @@ export default function AnalyticsScreen() {
                   {data.sg.byBand.map((b) => `${b.band.label} ${b.putts}打`).join(" ／ ")}
                 </Note>
               </Card>
+              </View>
 
+              <View {...anchor("make")}>
               <Card>
                 <SectionTitle title="距離別カップイン率" subtitle="1st に限らず全パット。破線は比べる相手の目安" />
                 <MakeCurveChart
@@ -193,11 +232,19 @@ export default function AnalyticsScreen() {
                 />
                 <Note>縦の線は「本当の実力はこの範囲にありそう」という95%の幅。回数が少ないほど長くなります。</Note>
               </Card>
+              </View>
 
-              <LagCard lag={data.lag} />
-              <LineCard lines={data.lines} miss={data.miss} chartW={chartW} baselineShort={base.short} />
-              <PuttForCard stats={data.puttFor} gir={data.gir} />
+              <View {...anchor("lag")}>
+                <LagCard lag={data.lag} />
+              </View>
+              <View {...anchor("line")}>
+                <LineCard lines={data.lines} miss={data.miss} chartW={chartW} baselineShort={base.short} />
+              </View>
+              <View {...anchor("puttFor")}>
+                <PuttForCard stats={data.puttFor} gir={data.gir} />
+              </View>
 
+              <View {...anchor("trend")}>
               <Card>
                 <SectionTitle title="ラウンドごとの推移" subtitle={`1ラウンド（18H換算）あたりの損得・${base.short}比`} />
                 <TrendChart
@@ -209,7 +256,13 @@ export default function AnalyticsScreen() {
                   }))}
                 />
               </Card>
+              </View>
 
+              <View {...anchor("detail")}>
+                <DetailCard detail={data.detail} chartW={chartW} baselineShort={base.short} />
+              </View>
+
+              <View {...anchor("conditions")}>
               <ConditionsCard
                 chartW={chartW}
                 groups={[
@@ -219,6 +272,7 @@ export default function AnalyticsScreen() {
                   { title: "コース別", rows: data.courses },
                 ]}
               />
+              </View>
 
               <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
                 基準: {base.label}（{base.note}）。{data.sg.holes}ホール・{data.sg.rounds}ラウンドを集計。距離の記入があるホールだけが対象です。
@@ -227,7 +281,126 @@ export default function AnalyticsScreen() {
           )}
         </View>
       </ScrollView>
+      {showToc && data.sg.holes > 0 && (
+        <Pressable
+          onPress={() => jump("toc")}
+          accessibilityRole="button"
+          accessibilityLabel="目次へ戻る"
+          style={{ position: "absolute", right: 16, bottom: 16, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.primary, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}
+        >
+          <IconSymbol name="chevron.up" size={18} color={colors.onPrimary} />
+          <Text style={{ color: colors.onPrimary, fontSize: 15, fontWeight: "800" }}>目次へ</Text>
+        </Pressable>
+      )}
     </ScreenContainer>
+  );
+}
+
+type SectionId = "toc" | "summary" | "map" | "practice" | "band" | "make" | "lag" | "line" | "puttFor" | "trend" | "detail" | "conditions";
+/** 目次に出すセクション（画面の並び順） */
+const SECTIONS: { id: SectionId; label: string }[] = [
+  { id: "summary", label: "総合" },
+  { id: "map", label: "グリーンマップ" },
+  { id: "practice", label: "練習の優先順位" },
+  { id: "band", label: "距離別の損得" },
+  { id: "make", label: "カップイン率" },
+  { id: "lag", label: "寄せ" },
+  { id: "line", label: "ライン" },
+  { id: "puttFor", label: "何のパット" },
+  { id: "trend", label: "推移" },
+  { id: "detail", label: "詳しい記録" },
+  { id: "conditions", label: "条件別" },
+];
+
+const MISS_DIR_LABEL: Record<number, string> = { 1: "手前", 2: "左", 3: "左奥", 4: "右奥", 5: "右" };
+
+/** 手入力の「詳しく（任意）」で入れた項目の傾向 */
+function DetailCard({ detail, chartW, baselineShort }: { detail: DetailStats; chartW: number; baselineShort: string }) {
+  const colors = useColors();
+  if (detail.recordedPutts === 0 && detail.byApproach.length === 0) {
+    return (
+      <Card>
+        <SectionTitle title="詳しい記録の傾向" subtitle="外れた方向・タッチ・メンタル・2段のライン・乗せたショットの距離" />
+        <Text style={{ color: colors.foreground, fontSize: 15, lineHeight: 22 }}>
+          手入力の各パットにある「詳しく（任意）」で記録すると、外れ方の癖や、タッチ・メンタルによる損得がここに出ます。
+        </Text>
+      </Card>
+    );
+  }
+  const md = detail.missDir;
+  const pct = (n: number) => (md.total ? Math.round((n / md.total) * 100) : 0);
+  const top = md.total
+    ? ([1, 2, 3, 4, 5] as const).reduce((a, b) => (md.counts[b] > md.counts[a] ? b : a), 1 as 1 | 2 | 3 | 4 | 5)
+    : null;
+  const DirCell = ({ n }: { n: 1 | 2 | 3 | 4 | 5 }) => {
+    const p = pct(md.counts[n]);
+    const strong = top === n;
+    return (
+      <View style={{ width: 88, paddingVertical: 6, borderRadius: 12, alignItems: "center", backgroundColor: strong ? `${colors.warning}33` : colors.background, borderWidth: 1, borderColor: strong ? colors.warning : colors.border }}>
+        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>{MISS_DIR_LABEL[n]}</Text>
+        <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{`${p}%`}</Text>
+      </View>
+    );
+  };
+  return (
+    <Card>
+      <SectionTitle title="詳しい記録の傾向" subtitle={`手入力の「詳しく」で記録した ${detail.recordedPutts} 打。損得は距離の違いを補正済み（${baselineShort}比・1打あたり）`} />
+
+      {md.total > 0 && (
+        <View style={{ gap: 10 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>{`外れた方向（${md.total}回）`}</Text>
+          <View style={{ alignItems: "center", gap: 6 }}>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <DirCell n={3} />
+              <DirCell n={4} />
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <DirCell n={2} />
+              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.foreground }} />
+              <DirCell n={5} />
+            </View>
+            <DirCell n={1} />
+          </View>
+          {top && <Note>{`いちばん多いのは「${MISS_DIR_LABEL[top]}」（${pct(md.counts[top])}%）。カップを上から見て、下が自分側です。`}</Note>}
+        </View>
+      )}
+
+      {detail.byTouch.length > 0 && (
+        <View style={{ gap: 6, marginTop: 14 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>タッチ別（1 弱い ⇔ 5 強い）</Text>
+          <DivergingBars width={chartW} rows={detail.byTouch.map((r) => ({ label: `${r.label}（${r.putts}）`, value: r.sgPerPutt }))} />
+        </View>
+      )}
+
+      {detail.byMental.length > 0 && (
+        <View style={{ gap: 6, marginTop: 14 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>メンタル別（1 ポジティブ ⇔ 5 ネガティブ）</Text>
+          <DivergingBars width={chartW} rows={detail.byMental.map((r) => ({ label: `${r.label}（${r.putts}）`, value: r.sgPerPutt }))} />
+        </View>
+      )}
+
+      {detail.twoStage.length > 0 && (
+        <View style={{ gap: 6, marginTop: 14 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>2段のライン（7m以内）</Text>
+          <DivergingBars width={chartW} rows={detail.twoStage.map((r) => ({ label: `${r.label}（${r.putts}）`, value: r.sgPerPutt }))} />
+        </View>
+      )}
+
+      {detail.byApproach.length > 0 && (
+        <View style={{ gap: 8, marginTop: 14 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>乗せたショットの距離別</Text>
+          {detail.byApproach.map((r) => (
+            <View key={r.label} style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "800", width: 96 }}>{r.label}</Text>
+              <Text style={{ color: colors.muted, fontSize: 14, flex: 1 }}>{`1st 平均 ${r.avgFirstMeters.toFixed(1)}m・${r.holes}H`}</Text>
+              <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{`${formatStrokes(r.sgPerHole, 2)}打/H`}</Text>
+            </View>
+          ))}
+          <Note>乗せたショットが近いほど 1st は短くなるのが普通です。距離の割に損をしている帯は、ショットではなくパットの課題です。</Note>
+        </View>
+      )}
+      <Note>回数が少ないうちは参考程度に見てください。</Note>
+    </Card>
   );
 }
 

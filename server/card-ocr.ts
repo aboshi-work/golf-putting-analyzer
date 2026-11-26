@@ -1,5 +1,5 @@
 /**
- * パッティングカード v3 の読み取り（サーバー）。
+ * パッティングカード v4 の読み取り（サーバー）。
  *
  * 精度を上げる仕組み:
  *  1. サーバーで四隅マーク → 向き（0/90/180/270°）→ 台形補正（どの端末の写真でも同じ処理）
@@ -35,6 +35,9 @@ const OCR_THINKING = (["minimal", "low", "medium", "high"].includes(process.env.
   | "low"
   | "medium"
   | "high";
+
+/** 1回の読み（1モデル）の上限。Vercel の関数の上限（300秒）より十分短く */
+const OCR_PASS_TIMEOUT_MS = Number(process.env.OCR_PASS_TIMEOUT_MS ?? 60000);
 
 const PUTT_SCHEMA = (withMiss: boolean, decimal: boolean) => ({
   type: "object",
@@ -79,22 +82,23 @@ const RESPONSE_SCHEMA = {
   required: ["side", "date", "course", "rows"],
 };
 
-const SYSTEM_PROMPT = `あなたはゴルフの「パッティングカード v3」を読み取る専門の OCR です。
+const SYSTEM_PROMPT = `あなたはゴルフの「パッティングカード v4」を読み取る専門の OCR です。
 
-## カードの構造（横長・1面9ホール）
-- 表面 OUT（1〜9番）、裏面 IN（10〜18番）。左端に印刷されたホール番号の行が上から9行並ぶ。
-- 各行の列（左から）:
-  1. 何のパット？: 5つの□ E / Ba / P / Bo / D+（1打目のパットが入れば何のスコアか）
-  2. 1st パット: 距離 m（2枠・整数）→ 平/上/下 の3□ → 直/左/右 の3□ → 短/長 の2□
-  3. 2nd パット: 距離 m（整数部□ ・ 小数部□ の2枠。間に小さな点が印刷されている）→ 平/上/下 → 直/左/右
-  4. 3rd: 距離 m（整数部□ ・ 小数部□）
-  5. 計: 1枠（そのホールの総パット数）
-- 上段: 日付（MM / DD の4枠。OUT 面のみ）とコース名（手書き）。
+## カードの構造（開いた状態の縦長1枚・9ホール）
+- OUT カード（1〜9番）と IN カード（10〜18番）がある。どちらも上半分に5ホール、下半分（折り線の下）に4ホール。
+- 1ホールは2段。左端に印刷されたホール番号が2段ぶんの高さで入っている。
+  - 上段（「1st」）: 何のパット？の5つの□ E / Ba / P / Bo / D+（1打目のパットが入れば何のスコアか）
+    → 1st の距離 m（2枠・整数）→ 傾斜 平/上/下 の3□ → 曲がり 直/左/右 の3□ → 外れ 短/長 の2□
+  - 下段（「2nd」）: 計（1枠・そのホールの総パット数。「何のパット」の下）
+    → 2nd の距離 m（整数部□ ・ 小数部□。1st の距離の真下）→ 傾斜 平/上/下 → 曲がり 直/左/右（1st の真下）
+    → 3rd の距離 m（整数部□ ・ 小数部□。「外れ」の下、「3rd」と印刷）
+- 上端: 日付（MM / DD の4枠。OUT カードのみ）とコース名（手書き）。
+- 出力の rows は上から順に9ホールぶん（上半分の5行 → 下半分の4行）。
 
 ## 読み方
 - 選択肢の□は「どの位置の枠に手書きの印（✓・塗りつぶし・×・斜線・○囲み）があるか」で判定。ラベル文字は印刷物で記入ではない。
 - 数字は1枠1字の手書き。2nd/3rd は整数部と小数部を合わせて小数1桁の数にする（[1][5]→1.5、[0][8]→0.8、[2][ ]→2）。
-- 1行の全項目を同じ行から読むこと。隣の行の値を混ぜない。行の切り抜き画像があるときはそれを優先して見る。
+- 1ホール（2段）の全項目を同じホールから読むこと。隣のホールの値を混ぜない。上段と下段を取り違えない。行の切り抜き画像（1ホールぶん）があるときはそれを優先して見る。
 - 何も書かれていない枠・行は null。推測で埋めない（迷ったら null）。
 - 1 と 7、4 と 9、3 と 8、5 と 6、0 と 6 の取り違えに注意。距離は 1st が最も長く 2nd、3rd と短くなるのが普通。
 - 計は記入されたパット数と一致するのが普通（1st だけ記入→1、2nd まで→2、3rd まで→3。4以上もありうる）。`;
@@ -160,7 +164,7 @@ export async function analyzeCard(input: AnalyzeCardInput): Promise<AnalyzeCardR
     {
       role: "user",
       content: [
-        { type: "text", text: "お手本です。この記入済みカード（OUT 面・補正済み）を読み取ってください。" },
+        { type: "text", text: "お手本です。この記入済みカード（OUT カード・補正済み）を読み取ってください。" },
         image(FEWSHOT_BASE64, FEWSHOT_MIME),
       ],
     },
@@ -179,14 +183,14 @@ export async function analyzeCard(input: AnalyzeCardInput): Promise<AnalyzeCardR
     {
       type: "text",
       text:
-        `次のカードを読み取ってください。四隅の■で正面・正しい向きに補正済みです。面は ${side === "in" ? "IN（10〜18番）" : side === "out" ? "OUT（1〜9番）" : "不明"}。\n` +
+        `次のカードを読み取ってください。四隅の■で正面・正しい向きに補正済みです。${side === "in" ? "IN カード（10〜18番）" : side === "out" ? "OUT カード（1〜9番）" : "OUT / IN は不明"}。\n` +
         "画素の測定で分かった数字枠の記入状況（空＝何も書かれていない）:\n" +
         hints.rows.map((_, i) => hintLine(i, side, hints)).join("\n"),
     },
     image(prepared.fullBase64),
   ];
   prepared.rowBase64.forEach((b64, i) => {
-    parts.push({ type: "text", text: `${i + 1}行目の切り抜き（上は列見出し）:` });
+    parts.push({ type: "text", text: `${i + 1}ホール目の切り抜き（上は列見出し。2段で1ホール）:` });
     parts.push(image(b64));
   });
 
@@ -219,7 +223,17 @@ export async function analyzeCard(input: AnalyzeCardInput): Promise<AnalyzeCardR
   };
 
   const verifyModel = ENV.ocrVerifyModel && ENV.ocrVerifyModel !== ENV.geminiModel ? ENV.ocrVerifyModel : null;
-  const [primaryResult, verifyResult] = await Promise.allSettled([runPass(), verifyModel ? runPass(verifyModel) : Promise.resolve(null)]);
+  // 片方のモデルが混雑（503）で再試行を続けても全体が待たされないよう、1回の読みに上限を付ける。
+  // 上限を超えた側は失敗扱いにし、もう片方の読みで続ける（両方失敗ならエラー）。
+  const withTimeout = <T,>(p: Promise<T>, label: string): Promise<T> =>
+    Promise.race([
+      p,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${OCR_PASS_TIMEOUT_MS / 1000}s`)), OCR_PASS_TIMEOUT_MS)),
+    ]);
+  const [primaryResult, verifyResult] = await Promise.allSettled([
+    withTimeout(runPass(), "primary"),
+    verifyModel ? withTimeout(runPass(verifyModel), "verify") : Promise.resolve(null),
+  ]);
   // 片方が失敗しても読み取りは続けるが、原因を追えるようにログへ残す
   for (const [label, r] of [["primary", primaryResult], ["verify", verifyResult]] as const) {
     if (r.status === "rejected") console.warn(`[ocr] ${label} pass failed: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);

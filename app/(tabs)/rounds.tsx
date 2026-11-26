@@ -4,12 +4,10 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { ConfirmBox } from "@/components/ui/confirm-box";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { cardShadow } from "@/lib/card-shadow";
-import { hapticSuccess } from "@/lib/haptics";
-import { getRounds, deleteRound, syncPendingHoleSaves } from "@/lib/storage";
+import { getRounds, syncPendingHoleSaves } from "@/lib/storage";
 import { formatDate } from "@/lib/analytics";
 import { Round, LABELS, countPlayedHoles } from "@/lib/types";
 
@@ -18,7 +16,6 @@ export default function RoundsScreen() {
   const colors = useColors();
   const [rounds, setRounds] = useState<Round[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const loadRounds = useCallback(async () => {
     await syncPendingHoleSaves().catch(() => undefined);
@@ -36,13 +33,6 @@ export default function RoundsScreen() {
     setRefreshing(true);
     await loadRounds();
     setRefreshing(false);
-  }, [loadRounds]);
-
-  const handleConfirmDelete = useCallback(async (roundId: string) => {
-    await deleteRound(roundId);
-    hapticSuccess();
-    setShowDeleteConfirm(null);
-    loadRounds();
   }, [loadRounds]);
 
   const renderItem = ({ item }: { item: Round }) => {
@@ -82,25 +72,9 @@ export default function RoundsScreen() {
         <Text className="text-muted text-sm">
           {item.putterName}
         </Text>
-        <View className="flex-row items-center gap-3">
-          <TouchableOpacity
-            onPress={() => setShowDeleteConfirm(showDeleteConfirm === item.id ? null : item.id)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <IconSymbol name="trash.fill" size={20} color={colors.error} />
-          </TouchableOpacity>
-          <IconSymbol name="chevron.right" size={20} color={colors.muted} />
-        </View>
+        {/* 削除は誤操作を避けるためラウンドの詳細画面だけに置く */}
+        <IconSymbol name="chevron.right" size={20} color={colors.muted} />
       </View>
-      {showDeleteConfirm === item.id && (
-        <ConfirmBox
-          message="削除しますか？"
-          confirmLabel="削除"
-          onCancel={() => setShowDeleteConfirm(null)}
-          onConfirm={() => handleConfirmDelete(item.id)}
-          style={{ marginTop: 8 }}
-        />
-      )}
     </TouchableOpacity>
     );
   };

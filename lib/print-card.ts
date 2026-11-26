@@ -2,8 +2,8 @@ import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 
 /** 印刷用カード（public/scorecard/）の置き場所 */
-export const PRINT_CARD_PATH = "/scorecard/putting-card-v3.html";
-export const PRINT_CARD_PDF_PATH = "/scorecard/putting-card-v3.pdf";
+export const PRINT_CARD_PATH = "/scorecard/putting-card-v4.html";
+export const PRINT_CARD_PDF_PATH = "/scorecard/putting-card-v4.pdf";
 
 // ネイティブでは Web 版（Vercel）に置いた HTML を開く
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL || "https://putting-analyzer-v2.vercel.app";

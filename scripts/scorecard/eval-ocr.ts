@@ -1,9 +1,9 @@
 /**
- * カード v3 の読み取り精度を実際の Gemini で測る（.env の GEMINI_API_KEY を使用・課金あり）。
+ * カード v4 の読み取り精度を実際の Gemini で測る（.env の GEMINI_API_KEY を使用・課金あり）。
  *
  *   npx tsx scripts/scorecard/eval-ocr.ts [fixture名...]
  *
- * tests/fixtures/card-v3-*.png（+ 正解 .json）を読み取り、フィールドごとの正解率と
+ * tests/fixtures/card-v4-*.png（+ 正解 .json）を読み取り、フィールドごとの正解率と
  * 「要確認」に上がったかどうかを表示する。誤読のうち要確認に上がらなかったもの（見逃し）が本当の問題。
  */
 import "dotenv/config";
@@ -22,7 +22,7 @@ const JPEG_Q = Number(process.env.JPEG_Q ?? 90);
 async function main() {
   const names = process.argv.slice(2).length
     ? process.argv.slice(2)
-    : readdirSync(FIXTURES).filter((f) => /^(card-v3|stress)-.*\.json$/.test(f)).map((f) => f.replace(/\.json$/, ""));
+    : readdirSync(FIXTURES).filter((f) => /^(card-v4|stress)-.*\.json$/.test(f)).map((f) => f.replace(/\.json$/, ""));
   let total = 0;
   let correct = 0;
   let silentErrors = 0;

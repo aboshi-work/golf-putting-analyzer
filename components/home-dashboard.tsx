@@ -166,8 +166,8 @@ export function HomeDashboard({
           <IconSymbol name="chevron.right" size={22} color={colors.onPrimary} />
         </Pressable>
         <View style={{ flexDirection: "row", gap: 12 }}>
-          <SubAction icon="camera.fill" title="カードを撮影" note="表と裏の2枚" onPress={onScan} />
-          <SubAction icon="printer.fill" title="カードを印刷" note="A4・二つ折り" onPress={onPrintCard} />
+          <SubAction icon="camera.fill" title="カードを撮影" note="OUT と IN の2枚" onPress={onScan} />
+          <SubAction icon="printer.fill" title="カードを印刷" note="A4 2枚・二つ折り" onPress={onPrintCard} />
         </View>
 
         {/* ─── 今の練習テーマ ─── */}

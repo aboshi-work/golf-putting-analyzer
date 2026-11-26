@@ -8,14 +8,14 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { hapticSuccess } from "@/lib/haptics";
-import { getPutters, getCourses, saveRound } from "@/lib/storage";
+import { getPutters, getCourses, getRound, getRounds, saveRound, updateRound } from "@/lib/storage";
 import {
   Putter,
   GolfCourse,
@@ -29,9 +29,17 @@ import {
   LABELS,
 } from "@/lib/types";
 
+/**
+ * ラウンドの作成と、ラウンド情報（天気・コース・グリーン・パター）の編集。
+ *  - /new-round                        新規作成。パター・芝・グリーンの速さ・種別は前回のラウンドの値を最初から入れておく
+ *  - /new-round?edit=<id>              既存ラウンドの情報を編集（ホールの記録はそのまま）
+ *  - /new-round?edit=<id>&after=scan   カードの読み取りから作ったラウンドに、続けて情報を入れる（飛ばしてもよい）
+ */
 export default function NewRoundScreen() {
   const router = useRouter();
   const colors = useColors();
+  const { edit, after } = useLocalSearchParams<{ edit?: string; after?: string }>();
+  const afterScan = Boolean(edit) && after === "scan";
 
   const [step, setStep] = useState(1);
   const [putters, setPutters] = useState<Putter[]>([]);
@@ -79,9 +87,30 @@ export default function NewRoundScreen() {
         const acePutter = puttersData.find((p) => p.ranking === "ace");
         setSelectedPutterId(acePutter?.id || puttersData[0].id);
       }
+      // 編集: そのラウンドの値をすべて入れる / 新規: 前回のラウンドと同じになりやすい項目だけ入れる
+      const base = edit ? await getRound(edit).catch(() => null) : (await getRounds().catch(() => []))[0] ?? null;
+      if (!base) return;
+      if (edit) {
+        setDate(base.date.split("T")[0]);
+        setWeather(base.weather);
+        setWindSpeed(base.windSpeed);
+        setTemperature(base.temperature != null ? String(base.temperature) : "");
+        setSelectedCourseId(base.courseId || null);
+        setCourseName(base.courseName === "未設定" ? "" : base.courseName);
+        setFrontNineGreen(base.frontNineGreen ?? "");
+        setBackNineGreen(base.backNineGreen ?? "");
+        setMowingHeight(base.mowingHeight != null ? String(base.mowingHeight) : "");
+        setCompaction(base.compaction != null ? String(base.compaction) : "");
+        setGreenCondition(base.greenCondition);
+      }
+      setGrassType(base.grassType);
+      if (base.stimpmeter) setStimpmeter(String(base.stimpmeter));
+      setRoundType(base.roundType);
+      setCompetitionFormat(base.competitionFormat);
+      if (base.putterId && puttersData.some((p) => p.id === base.putterId)) setSelectedPutterId(base.putterId);
     };
     loadData();
-  }, []);
+  }, [edit]);
 
   const handleCourseSelect = (course: GolfCourse) => {
     setSelectedCourseId(course.id);
@@ -92,16 +121,25 @@ export default function NewRoundScreen() {
     }
   };
 
+  /** そのステップで足りない入力（次へ進む前に止める）。問題なければ null */
+  const stepProblem = (s: number): string | null => {
+    if (s === 1 && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime()))) {
+      return "日付は YYYY-MM-DD 形式で入力してください";
+    }
+    if (s === 2 && !courseName.trim()) return "コース名を入力してください";
+    return null;
+  };
+
   const handleCreateRound = async () => {
     setError(null);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())) {
-      setError("日付は YYYY-MM-DD 形式で入力してください");
-      setStep(1);
-      return;
-    }
-    if (!courseName) {
-      setError("コース名を入力してください");
-      return;
+    // 前のステップの入力漏れは、そのステップに戻して知らせる
+    for (const s of [1, 2]) {
+      const problem = stepProblem(s);
+      if (problem) {
+        setError(problem);
+        setStep(s);
+        return;
+      }
     }
     if (!selectedPutterId) {
       setError("使用パターを選択してください");
@@ -136,11 +174,19 @@ export default function NewRoundScreen() {
 
     setIsSubmitting(true);
     try {
+      if (edit) {
+        // ホールの記録には触れない（holes / totalPutts は送らない）
+        const { holes: _holes, totalPutts: _total, ...info } = roundData;
+        await updateRound(edit, info);
+        hapticSuccess();
+        router.replace(`/round/${edit}` as any);
+        return;
+      }
       const newRound = await saveRound(roundData);
       hapticSuccess();
       router.replace(`/round/${newRound.id}` as any); // 撮影か手入力かをラウンド画面で選ぶ
     } catch (err) {
-      setError("ラウンドの作成に失敗しました。もう一度お試しください。");
+      setError(edit ? "保存に失敗しました。もう一度お試しください。" : "ラウンドの作成に失敗しました。もう一度お試しください。");
       setIsSubmitting(false);
     }
   };
@@ -499,10 +545,23 @@ export default function NewRoundScreen() {
             <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
           </TouchableOpacity>
           <Text className="text-lg font-semibold text-foreground">
-            新規ラウンド
+            {afterScan ? "ラウンドの情報" : edit ? "ラウンド情報を編集" : "新規ラウンド"}
           </Text>
-          <View style={{ width: 24 }} />
+          {afterScan ? (
+            <TouchableOpacity onPress={() => router.replace(`/round/${edit}` as any)} accessibilityRole="button" style={{ minHeight: 44, justifyContent: "center" }}>
+              <Text style={{ color: colors.primary, fontSize: 15, fontWeight: "800" }}>あとで</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 24 }} />
+          )}
         </View>
+        {afterScan && (
+          <View style={{ marginHorizontal: 16, marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: `${colors.primary}14` }}>
+            <Text style={{ color: colors.foreground, fontSize: 14, lineHeight: 20 }}>
+              カードの記録を保存しました。天気・グリーンの速さ・使ったパターを入れると、条件別の分析ができます（あとからラウンド画面で入れても大丈夫です）。
+            </Text>
+          </View>
+        )}
 
         {/* ステップインジケーター */}
         <View className="px-4 pt-4 pb-2">
@@ -548,6 +607,11 @@ export default function NewRoundScreen() {
             disabled={isSubmitting}
             onPress={() => {
               if (step < 4) {
+                const problem = stepProblem(step);
+                if (problem) {
+                  setError(problem);
+                  return;
+                }
                 setError(null);
                 setStep(step + 1);
               } else {
@@ -557,7 +621,7 @@ export default function NewRoundScreen() {
             style={{ opacity: isSubmitting ? 0.6 : 1 }}
           >
             <Text className="text-onPrimary font-medium">
-              {isSubmitting ? "作成中..." : step < 4 ? "次へ" : "ラウンド開始"}
+              {isSubmitting ? "保存中..." : step < 4 ? "次へ" : edit ? "保存" : "ラウンド開始"}
             </Text>
           </TouchableOpacity>
         </View>

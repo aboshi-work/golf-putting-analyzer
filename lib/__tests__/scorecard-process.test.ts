@@ -28,11 +28,11 @@ describe("solveHomography", () => {
   });
 });
 
-describe("processCardPhoto (synthetic photos of card v3)", () => {
+describe("processCardPhoto (synthetic photos of card v4)", () => {
   const cases: [string, number][] = [
-    ["card-v3-out-pen", 0],
-    ["card-v3-in-pencil-180", 180],
-    ["card-v3-out-rot90", 270],
+    ["card-v4-out-pen", 0],
+    ["card-v4-in-pencil-180", 180],
+    ["card-v4-out-rot90", 270],
   ];
 
   for (const [name, rotation] of cases) {
@@ -95,7 +95,7 @@ describe("processCardPhoto (synthetic photos of card v3)", () => {
   });
 
   it("rejects a photo whose right-hand markers are cut off", () => {
-    const image = decodePng(readFileSync(path.join(FIXTURES, "card-v3-clipped.png")));
+    const image = decodePng(readFileSync(path.join(FIXTURES, "card-v4-clipped.png")));
     expect(processCardPhoto(image)).toBeNull();
   });
 
@@ -110,7 +110,7 @@ describe("laplacianVariance", () => {
   it("is zero for a flat image and larger for a detailed one", () => {
     const flat = { width: 50, height: 50, data: new Uint8ClampedArray(2500).fill(200) };
     expect(laplacianVariance(flat)).toBe(0);
-    const { image } = load("card-v3-out-pen");
+    const { image } = load("card-v4-out-pen");
     expect(laplacianVariance(rgbaToGray(image))).toBeGreaterThan(50);
   });
 });

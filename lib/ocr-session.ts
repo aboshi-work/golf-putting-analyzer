@@ -12,6 +12,8 @@ export type SideResult = {
   warnings: Record<number, string[]>;
   /** 補正済み画像（JPEG base64）。補正できなかったときは撮影した写真 */
   preview: string | null;
+  /** preview の代わりに表示する画像の URI（デモのサンプルで SVG を出すとき） */
+  previewUri?: string;
   rectified: boolean;
   blurry: boolean;
 };

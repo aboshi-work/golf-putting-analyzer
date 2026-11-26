@@ -89,6 +89,10 @@ const puttInputSchema = z.object({
   lineUD: slopeUpDownSchema.nullable().optional(),
   lineLR: slopeLeftRightSchema.nullable().optional(),
   missLength: z.enum(["short", "long"]).nullable().optional(),
+  // 詳しい記録（任意。アプリでだけ入力）
+  missedDirection: z.number().int().min(1).max(5).nullable().optional(),
+  touch: z.number().int().min(1).max(5).nullable().optional(),
+  mental: z.enum(["1", "2", "3", "4", "5"]).nullable().optional(),
 });
 
 // ─── Hole input schema (used in upsertHoles) ─────────────────────────────────

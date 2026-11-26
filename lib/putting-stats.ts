@@ -9,7 +9,7 @@
  *  - パット数 = 基準の期待パット数（＝ファーストパットの距離の難しさ） − SG（＝パッティングの腕）に分解して見せる。
  */
 import { SCORE_ORDER, puttForOfHole, puttMeters } from "./putting";
-import type { HoleData, MissLength, PuttData, Round, ScoreResult, SlopeLeftRight, SlopeUpDown } from "./types";
+import type { HoleData, MissLength, PuttData, Round, ScoreResult, SlopeLeftRight, SlopeUpDown, MissDirection, Scale5 } from "./types";
 
 // ─── 基準（ベースライン） ────────────────────────────────────────────────────
 
@@ -97,6 +97,10 @@ export type PuttObs = {
   sg: number | null;
   /** 何のパットか（この打の時点） */
   puttFor: ScoreResult | null;
+  /** 詳しい記録（任意） */
+  missedDirection: MissDirection | null;
+  touch: Scale5 | null;
+  mental: Scale5 | null;
 };
 
 export type HoleObs = {
@@ -108,6 +112,8 @@ export type HoleObs = {
   /** E(1st距離) − 総パット数 */
   sg: number | null;
   expected: number | null;
+  /** グリーンに乗せたショットの距離（yd・任意） */
+  approachYards: number | null;
   putts: PuttObs[];
 };
 
@@ -146,6 +152,9 @@ export function holeObservations(rounds: Round[], baseline: BaselineId): HoleObs
           leaveMeters: holed ? null : leave,
           sg,
           puttFor: p.result ?? null,
+          missedDirection: holed ? null : (p.missedDirection ?? null),
+          touch: p.touch ?? null,
+          mental: p.mental ?? null,
         });
       });
       out.push({
@@ -156,6 +165,7 @@ export function holeObservations(rounds: Round[], baseline: BaselineId): HoleObs
         firstMeters,
         expected,
         sg: expected != null ? expected - hole.totalPutts : null,
+        approachYards: putts[0]?.distPrev != null && putts[0].distPrev > 0 ? putts[0].distPrev : null,
         putts: obs,
       });
     }
@@ -636,4 +646,64 @@ export function greenPoints(holes: HoleObs[]): GreenPoint[] {
       },
     ];
   });
+}
+
+
+// ─── 詳しい記録（外れた方向・タッチ・メンタル・2段のライン・乗せたショット） ─────────────
+
+export type DetailRow = { key: string; label: string; putts: number; sgPerPutt: number };
+export type ApproachRow = { label: string; holes: number; avgFirstMeters: number; sgPerHole: number };
+
+export type DetailStats = {
+  /** 詳しい記録が1つでも入っているパットの数 */
+  recordedPutts: number;
+  /** 外れた方向の回数（1 手前 2 左 3 左奥 4 右奥 5 右） */
+  missDir: { total: number; counts: Record<MissDirection, number> };
+  byTouch: DetailRow[];
+  byMental: DetailRow[];
+  twoStage: DetailRow[];
+  byApproach: ApproachRow[];
+};
+
+const SCALE: Scale5[] = [1, 2, 3, 4, 5];
+const TWO_STAGE: { key: string; label: string; match: (p: PuttObs) => boolean }[] = [
+  { key: "up_down", label: "上って下る", match: (p) => p.lineUD === "up_down" },
+  { key: "down_up", label: "下って上る", match: (p) => p.lineUD === "down_up" },
+  { key: "left_right", label: "左→右", match: (p) => p.lineLR === "left_right" },
+  { key: "right_left", label: "右→左", match: (p) => p.lineLR === "right_left" },
+];
+const APPROACH_BANDS: { label: string; min: number; max: number }[] = [
+  { label: "〜50yd", min: 0, max: 50 },
+  { label: "50〜100yd", min: 50, max: 100 },
+  { label: "100〜150yd", min: 100, max: 150 },
+  { label: "150yd〜", min: 150, max: Infinity },
+];
+
+function detailRow(key: string, label: string, ps: PuttObs[]): DetailRow {
+  const withSg = ps.filter((p) => p.sg != null);
+  return { key, label, putts: ps.length, sgPerPutt: mean(withSg.map((p) => p.sg!)) };
+}
+
+/** アプリの「詳しく（任意）」で入れた項目の集計。距離の違いは SG で補正済み */
+export function detailStats(holes: HoleObs[]): DetailStats {
+  const ps = holes.flatMap((h) => h.putts);
+  const recordedPutts = ps.filter(
+    (p) => p.missedDirection != null || p.touch != null || p.mental != null || TWO_STAGE.some((t) => t.match(p)),
+  ).length;
+  const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } as Record<MissDirection, number>;
+  for (const p of ps) if (p.missedDirection != null) counts[p.missedDirection]++;
+  const total = SCALE.reduce((n, k) => n + counts[k as MissDirection], 0);
+  const short7 = ps.filter((p) => p.meters <= 7);
+  return {
+    recordedPutts,
+    missDir: { total, counts },
+    byTouch: SCALE.map((k) => detailRow(String(k), `タッチ ${k}`, ps.filter((p) => p.touch === k))).filter((r) => r.putts > 0),
+    byMental: SCALE.map((k) => detailRow(String(k), `メンタル ${k}`, ps.filter((p) => p.mental === k))).filter((r) => r.putts > 0),
+    twoStage: TWO_STAGE.map((t) => detailRow(t.key, t.label, short7.filter(t.match))).filter((r) => r.putts > 0),
+    byApproach: APPROACH_BANDS.map((b) => {
+      const hs = holes.filter((h) => h.approachYards != null && h.approachYards >= b.min && h.approachYards < b.max && h.firstMeters != null);
+      const withSg = hs.filter((h) => h.sg != null);
+      return { label: b.label, holes: hs.length, avgFirstMeters: mean(hs.map((h) => h.firstMeters!)), sgPerHole: mean(withSg.map((h) => h.sg!)) };
+    }).filter((r) => r.holes > 0),
+  };
 }

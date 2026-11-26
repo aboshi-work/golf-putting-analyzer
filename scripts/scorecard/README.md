@@ -1,6 +1,8 @@
-# パッティングカード v3 のスクリプト
+# パッティングカード v4 のスクリプト
 
-Playwright は依存に含めていない。一時ディレクトリで `npm i playwright@1.52.0` し、`NODE_PATH=<その node_modules>` を付けて実行する（Microsoft Edge チャネル）。
+- `gen-fixtures.ts`・`build-fewshot.ts` は Microsoft Edge のヘッドレスをコマンドラインで呼んで撮影する（`edge-shot.ts`。Playwright 不要）。
+  Playwright の page.screenshot は Edge 158 で止まる（2026-11-26）。
+- `render-pdf.js` だけ Playwright を使う。一時ディレクトリで `npm i playwright@latest`（1.65 で動作確認）し、`NODE_PATH=<その node_modules>` を付けて実行する（Microsoft Edge チャネル）。
 
 | スクリプト | 役割 |
 |---|---|

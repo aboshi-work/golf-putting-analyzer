@@ -1,5 +1,5 @@
 /**
- * パッティングカード v3 の撮影。表（OUT 1〜9番）と裏（IN 10〜18番）の2枚。
+ * パッティングカード v4 の撮影。OUT カード（1〜9番）と IN カード（10〜18番）を、それぞれ開いて1枚ずつ。
  *
  * - 撮影/選択した直後に前処理（Web: 四隅■検出・向き補正・台形補正・面の判定）をして状態を表示
  * - 面を取り違えて撮っても、判定できた面に自動で入れ替える
@@ -19,19 +19,21 @@ import { useColors } from "@/hooks/use-colors";
 import { shadowPrimary, shadowSm } from "@/lib/card-shadow";
 import { hapticLight } from "@/lib/haptics";
 import { prepareScorecardImage, type PreparedImage } from "@/lib/ocr-image";
+import { demoOcrResults } from "@/lib/demo-ocr";
 import { setOcrSession, type SideResult } from "@/lib/ocr-session";
 import { useIsDemo } from "@/lib/session-context";
-import type { CardSide } from "@/lib/scorecard/layout";
+import { CARD_H, CARD_W, type CardSide } from "@/lib/scorecard/layout";
 import { trpc } from "@/lib/trpc";
 
 type Shot = { uri: string; base64: string; prepared?: PreparedImage };
 
 const SIDE_INFO: Record<CardSide, { title: string; sub: string }> = {
-  out: { title: "表 OUT", sub: "1〜9番" },
-  in: { title: "裏 IN", sub: "10〜18番" },
+  out: { title: "OUT カード", sub: "1〜9番・開いて撮影" },
+  in: { title: "IN カード", sub: "10〜18番・開いて撮影" },
 };
 
-const CARD_ASPECT = 175 / 105;
+/** カードを開いた状態の 幅 / 高さ（縦長） */
+const CARD_ASPECT = CARD_W / CARD_H;
 
 export default function ScanCardScreen() {
   const router = useRouter();
@@ -64,7 +66,7 @@ export default function ScanCardScreen() {
         const updated = { ...current, prepared };
         const detected = prepared.side;
         if (detected && detected !== side) {
-          setNotice(`${SIDE_INFO[detected].title} の面だったので入れ替えました`);
+          setNotice(`${SIDE_INFO[detected].title}だったので入れ替えました`);
           return { ...prev, [side]: prev[detected], [detected]: updated };
         }
         return { ...prev, [side]: updated };
@@ -79,7 +81,7 @@ export default function ScanCardScreen() {
       if (photo?.base64) {
         hapticLight();
         addShot(cameraFor, { uri: photo.uri, base64: photo.base64 });
-        // 表を撮ったら続けて裏へ
+        // OUT を撮ったら続けて IN へ
         if (cameraFor === "out" && !shots.in) setCameraFor("in");
         else setCameraFor(null);
       }
@@ -262,7 +264,22 @@ export default function ScanCardScreen() {
       <ScrollView contentContainerStyle={{ alignItems: "center", paddingBottom: 24 }}>
         <View style={{ width: contentW, gap: 14, paddingTop: 8 }}>
           {isDemo && (
-            <ErrorBanner title="デモモードでは読み取りを使えません" message="カードの読み取り（AI）はログインが必要です。デモでは手入力と分析をお試しください。" />
+            <View style={[{ backgroundColor: colors.surface, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 10 }, shadowSm]}>
+              <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>デモモードでは、サンプルのカードで試せます</Text>
+              <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>
+                実際の読み取り（AI）はログインが必要です。記入済みのサンプルを読み取った結果で、確認と保存の流れを試せます。
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setOcrSession({ roundId, results: demoOcrResults() });
+                  router.push("/ocr-review" as never);
+                }}
+                accessibilityRole="button"
+                style={{ minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary }}
+              >
+                <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: "900" }}>サンプルのカードで試す</Text>
+              </Pressable>
+            </View>
           )}
           {error && <ErrorBanner title="読み取りエラー" message={error} />}
           {notice && (
@@ -298,7 +315,7 @@ export default function ScanCardScreen() {
           accessibilityRole="button"
           style={[{ minHeight: 54, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, opacity: count === 0 || isDemo ? 0.4 : 1 }, shadowPrimary]}
         >
-          <Text style={{ color: colors.onPrimary, fontSize: 17, fontWeight: "900" }}>{count === 0 ? "カードを撮影してください" : `${count}面を読み取る`}</Text>
+          <Text style={{ color: colors.onPrimary, fontSize: 17, fontWeight: "900" }}>{count === 0 ? "カードを撮影してください" : `${count}枚を読み取る`}</Text>
         </Pressable>
       </View>
     </ScreenContainer>

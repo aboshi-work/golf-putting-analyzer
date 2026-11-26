@@ -120,12 +120,20 @@ export default function RoundDetailScreen() {
             <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 26, fontWeight: "900", letterSpacing: -0.4 }}>
               {round.courseName}
             </Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 8 }}>
               {chips.map((c) => (
                 <View key={c} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: `${colors.primary}14` }}>
                   <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>{c}</Text>
                 </View>
               ))}
+              <Pressable
+                onPress={() => router.push(`/new-round?edit=${round.id}` as never)}
+                accessibilityRole="button"
+                accessibilityLabel="天気・グリーン・パターなどのラウンド情報を編集"
+                style={{ minHeight: 36, paddingHorizontal: 10, justifyContent: "center" }}
+              >
+                <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "800" }}>情報を編集</Text>
+              </Pressable>
             </View>
           </View>
 
@@ -133,7 +141,7 @@ export default function RoundDetailScreen() {
             <View style={[{ backgroundColor: colors.surface, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: colors.border, gap: 12 }, shadowSm]}>
               <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: "900" }}>ホールの記録を入れましょう</Text>
               <Text style={{ color: colors.muted, fontSize: 15, lineHeight: 22 }}>
-                パッティングカードの表（OUT）と裏（IN）を撮影すると、18ホールをまとめて読み取ります。
+                OUT カードと IN カードを開いて1枚ずつ撮影すると、18ホールをまとめて読み取ります。
               </Text>
               <BigButton icon="camera.fill" label="カードを撮影して読み取る" primary onPress={() => router.push(`/scan-card?roundId=${round.id}` as never)} />
               <BigButton icon="pencil" label="手で入力する" onPress={() => router.push(`/hole-input/${round.id}` as never)} />

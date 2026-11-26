@@ -93,8 +93,16 @@ export type SlopeUpDown = 'flat' | 'uphill' | 'downhill' | 'up_down' | 'down_up'
 // ライン（左右）- カードの Line(L/R): St, L, R, LR, RL に対応
 export type SlopeLeftRight = 'straight' | 'left' | 'right' | 'left_right' | 'right_left';
 
-// 外れたパットの縦方向（カード v3 の「短 / 長」）
+// 外れたパットの縦方向（カードの「短 / 長」）
 export type MissLength = 'short' | 'long';
+
+/**
+ * 外れた方向（最初の試作シートの5方向。カップを上から見て、手前が自分側）
+ *   1 = 手前（ショート） 2 = 左 3 = 左奥 4 = 右奥 5 = 右
+ */
+export type MissDirection = 1 | 2 | 3 | 4 | 5;
+/** 1〜5 の5段階（タッチ: 1 弱 → 5 強 / メンタル: 1 ポジティブ → 5 ネガティブ） */
+export type Scale5 = 1 | 2 | 3 | 4 | 5;
 
 // パットデータ - カードの各パットセクションに完全対応
 export interface PuttData {
@@ -113,6 +121,10 @@ export interface PuttData {
   lineLR: SlopeLeftRight | null; // カードの Line(L/R): St, L, R, LR, RL（未記入は null）
   /** 外れたときショートかオーバーか（未記入・カップインは null） */
   missLength?: MissLength | null;
+  /** 詳しい記録（任意。アプリでだけ入力。カードには無い） */
+  missedDirection?: MissDirection | null;
+  touch?: Scale5 | null;
+  mental?: Scale5 | null;
 }
 
 // ホールデータ
