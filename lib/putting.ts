@@ -7,7 +7,7 @@
  *    記録した最後のパットも外れている。
  *  - ホールのスコア = 何のパット + (総パット数 − 1)。
  */
-import type { HoleData, MissLength, PuttData, ScoreResult, SlopeLeftRight, SlopeUpDown } from "./types";
+import type { HoleData, MissDirection, MissLength, PuttData, Scale5, ScoreResult, SlopeLeftRight, SlopeUpDown } from "./types";
 
 export const SCORE_ORDER: ScoreResult[] = ["eagle", "birdie", "par", "bogey", "double_bogey_plus"];
 
@@ -26,6 +26,10 @@ export type PuttEntry = {
   lineUD?: SlopeUpDown | null;
   lineLR?: SlopeLeftRight | null;
   missLength?: MissLength | null;
+  /** 詳しい記録（任意） */
+  missedDirection?: MissDirection | null;
+  touch?: Scale5 | null;
+  mental?: Scale5 | null;
 };
 
 export type HoleEntry = {
@@ -35,6 +39,8 @@ export type HoleEntry = {
   totalPutts: number;
   /** 1st, 2nd, 3rd（4打目以降は記録しない） */
   putts: PuttEntry[];
+  /** グリーンに乗せたショットの距離（ヤード・任意）。1st パットの distPrev に入れる */
+  approachYards?: number | null;
 };
 
 /** 入力（カードの1行・手入力フォーム）から保存用の HoleData を作る */
@@ -48,7 +54,7 @@ export function buildHole(entry: HoleEntry): HoleData {
     return {
       strokeNumber,
       cupIn,
-      distPrev: null,
+      distPrev: i === 0 && entry.approachYards != null && entry.approachYards > 0 ? Math.round(entry.approachYards) : null,
       result: entry.puttFor ? shiftScore(entry.puttFor, i) : null,
       lengthSteps: null,
       lengthMeters: meters,
@@ -56,6 +62,9 @@ export function buildHole(entry: HoleEntry): HoleData {
       lineUD: p.lineUD ?? null,
       lineLR: p.lineLR ?? null,
       missLength: cupIn ? null : (p.missLength ?? null),
+      missedDirection: cupIn ? null : (p.missedDirection ?? null),
+      touch: p.touch ?? null,
+      mental: p.mental ?? null,
     };
   });
   const base = entry.puttFor ?? "par";
@@ -74,11 +83,15 @@ export function holeToEntry(hole: HoleData): HoleEntry {
     holeNumber: hole.holeNumber,
     puttFor: puttForOfHole(hole),
     totalPutts: hole.totalPutts,
+    approachYards: sorted[0]?.distPrev ?? null,
     putts: sorted.map((p) => ({
       meters: p.lengthMeters ?? (p.distanceMeters > 0 ? p.distanceMeters : null),
       lineUD: p.lineUD,
       lineLR: p.lineLR,
       missLength: p.missLength ?? null,
+      missedDirection: p.missedDirection ?? null,
+      touch: p.touch ?? null,
+      mental: p.mental ?? null,
     })),
   };
 }

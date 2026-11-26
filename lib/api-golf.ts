@@ -190,6 +190,9 @@ interface DbPutt {
   lineUD: string | null;
   lineLR: string | null;
   missLength?: string | null;
+  missedDirection?: number | null;
+  touch?: number | null;
+  mental?: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
 }
@@ -254,7 +257,16 @@ function dbPuttToClient(db: DbPutt): PuttData {
     lineUD: (db.lineUD as PuttData["lineUD"]) ?? null,
     lineLR: (db.lineLR as PuttData["lineLR"]) ?? null,
     missLength: (db.missLength as PuttData["missLength"]) ?? null,
+    missedDirection: scale5(db.missedDirection) as PuttData["missedDirection"],
+    touch: scale5(db.touch),
+    mental: scale5(db.mental),
   };
+}
+
+/** DB の 1〜5（数値か "1"〜"5" の文字）→ 1〜5。それ以外は null */
+function scale5(v: number | string | null | undefined): 1 | 2 | 3 | 4 | 5 | null {
+  const n = typeof v === "string" ? Number(v) : v;
+  return n === 1 || n === 2 || n === 3 || n === 4 || n === 5 ? n : null;
 }
 
 function dbHoleToClient(db: DbHole): HoleData {
@@ -735,6 +747,9 @@ export async function saveHolesForRound(
       lineUD: putt.lineUD,
       lineLR: putt.lineLR,
       missLength: putt.missLength ?? null,
+      missedDirection: putt.missedDirection ?? null,
+      touch: putt.touch ?? null,
+      mental: putt.mental != null ? String(putt.mental) : null,
     })),
   }));
 

@@ -1,6 +1,7 @@
 /**
- * ホールの手入力（カード v3 と同じ項目）。
+ * ホールの手入力（カードと同じ項目＋任意の詳しい記録）。
  *   何のパット？ → パット数 → 各パットの距離・傾斜・曲がり（1st が外れたら 短/長）
+ *   「詳しく（任意）」: 2段のライン・外れた方向（5方向）・タッチ・メンタル。ホールごとに乗せたショットの距離
  * ホールを移るたびにそのホールだけ保存する（圏外なら端末に保留して後で送信）。
  * 距離は m で入力。「歩」に切り替えるとプロフィールの歩幅で m に換算する。
  */
@@ -19,7 +20,7 @@ import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import { buildHole, holeToEntry, type HoleEntry, type PuttEntry } from "@/lib/putting";
 import { BASELINES, expectedPutts } from "@/lib/putting-stats";
 import { getRoundWithPending, getUserProfile, saveHolesForRound } from "@/lib/storage";
-import type { MissLength, Round, ScoreResult, SlopeLeftRight, SlopeUpDown } from "@/lib/types";
+import type { MissDirection, MissLength, Round, Scale5, ScoreResult, SlopeLeftRight, SlopeUpDown } from "@/lib/types";
 
 const PUTT_FOR_OPTIONS: { value: ScoreResult; label: string; code: string }[] = [
   { value: "eagle", label: "イーグル", code: "E" },
@@ -43,12 +44,39 @@ const MISS_OPTIONS: { value: MissLength; label: string }[] = [
   { value: "long", label: "オーバー" },
 ];
 const ORDINAL = ["1st", "2nd", "3rd"];
+/** 2段のライン（詳しく） */
+const UD2_OPTIONS: { value: SlopeUpDown; label: string }[] = [
+  { value: "up_down", label: "上って下る" },
+  { value: "down_up", label: "下って上る" },
+];
+const LR2_OPTIONS: { value: SlopeLeftRight; label: string }[] = [
+  { value: "left_right", label: "左→右" },
+  { value: "right_left", label: "右→左" },
+];
 
-type Draft = HoleEntry & { distText: string[] };
+type Draft = HoleEntry & { distText: string[]; approachText: string };
 
 function toDraft(entry: HoleEntry): Draft {
   const putts: PuttEntry[] = [0, 1, 2].map((i) => entry.putts[i] ?? { meters: null });
-  return { ...entry, putts, distText: putts.map((p) => (p.meters != null ? String(p.meters) : "")) };
+  return {
+    ...entry,
+    putts,
+    distText: putts.map((p) => (p.meters != null ? String(p.meters) : "")),
+    approachText: entry.approachYards != null ? String(entry.approachYards) : "",
+  };
+}
+
+/** そのパットに詳しい記録が入っているか（入っていれば「詳しく」を最初から開く） */
+function hasDetail(p: PuttEntry): boolean {
+  return (
+    p.missedDirection != null ||
+    p.touch != null ||
+    p.mental != null ||
+    p.lineUD === "up_down" ||
+    p.lineUD === "down_up" ||
+    p.lineLR === "left_right" ||
+    p.lineLR === "right_left"
+  );
 }
 
 function emptyDraft(holeNumber: number): Draft {
@@ -80,6 +108,8 @@ export default function HoleInputScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** 「詳しく」を開いているパット（`${hole}-${i}`）。記録があるパットは最初から開く */
+  const [detailOpen, setDetailOpen] = useState<Set<string>>(new Set());
   const stripRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -349,9 +379,48 @@ export default function HoleInputScreen() {
                   {i === 0 && !holed && (
                     <Options options={MISS_OPTIONS} value={p.missLength ?? null} onChange={(v) => setPutt(i, { missLength: v as MissLength | null })} />
                   )}
+                  <PuttDetail
+                    putt={p}
+                    holed={holed}
+                    showLine={i < 2}
+                    open={detailOpen.has(`${current}-${i}`) || hasDetail(p)}
+                    onToggle={() =>
+                      setDetailOpen((prev) => {
+                        const next = new Set(prev);
+                        const key = `${current}-${i}`;
+                        if (next.has(key)) next.delete(key);
+                        else next.add(key);
+                        return next;
+                      })
+                    }
+                    onChange={(patch) => setPutt(i, patch)}
+                  />
                 </View>
               );
             })}
+            {recorded > 0 && (
+              <View style={{ backgroundColor: colors.surface, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 8 }}>
+                <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>グリーンに乗せたショットの距離（任意）</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <TextInput
+                    value={draft.approachText}
+                    onChangeText={(t) => {
+                      const clean = t.replace(/[^0-9]/g, "").slice(0, 3);
+                      const n = Number(clean);
+                      update((d) => ({ ...d, approachText: clean, approachYards: clean && n > 0 ? n : null }));
+                    }}
+                    keyboardType="number-pad"
+                    inputMode="numeric"
+                    placeholder="例 120"
+                    placeholderTextColor={colors.muted}
+                    accessibilityLabel="グリーンに乗せたショットの距離（ヤード）"
+                    style={{ flex: 1, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, paddingHorizontal: 14, fontSize: 18, fontWeight: "800", color: colors.foreground }}
+                  />
+                  <Text style={{ color: colors.muted, fontSize: 16, fontWeight: "700", width: 64 }}>yd</Text>
+                </View>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>乗せたショットの距離と 1st パットの距離から、ショットの精度とパットの関係を見られます。</Text>
+              </View>
+            )}
             {draft.totalPutts > 3 && (
               <Text style={{ color: colors.muted, fontSize: 14 }}>4打目以降の距離は記録しません（カードと同じ）。</Text>
             )}
@@ -377,6 +446,120 @@ export default function HoleInputScreen() {
         </View>
       </KeyboardAvoidingView>
     </ScreenContainer>
+  );
+}
+
+/** パットの詳しい記録（任意）: 2段のライン・外れた方向・タッチ・メンタル */
+function PuttDetail({
+  putt,
+  holed,
+  showLine,
+  open,
+  onToggle,
+  onChange,
+}: {
+  putt: PuttEntry;
+  holed: boolean;
+  showLine: boolean;
+  open: boolean;
+  onToggle: () => void;
+  onChange: (patch: Partial<PuttEntry>) => void;
+}) {
+  const colors = useColors();
+  return (
+    <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, gap: 10 }}>
+      <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={{ minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={{ color: colors.primary, fontSize: 15, fontWeight: "800" }}>詳しく（任意）</Text>
+        <IconSymbol name="chevron.down" size={18} color={colors.muted} style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }} />
+      </Pressable>
+      {open && (
+        <View style={{ gap: 12 }}>
+          {showLine && (
+            <>
+              <DetailLabel text="2段のライン（上の平・上・下／直・左・右の代わりに）" />
+              <Options options={UD2_OPTIONS} value={putt.lineUD === "up_down" || putt.lineUD === "down_up" ? putt.lineUD : null} onChange={(v) => onChange({ lineUD: (v as SlopeUpDown | null) ?? null })} />
+              <Options options={LR2_OPTIONS} value={putt.lineLR === "left_right" || putt.lineLR === "right_left" ? putt.lineLR : null} onChange={(v) => onChange({ lineLR: (v as SlopeLeftRight | null) ?? null })} />
+            </>
+          )}
+          {!holed && (
+            <>
+              <DetailLabel text="外れた方向（カップを上から見て、下が自分側）" />
+              <MissDirectionPad value={putt.missedDirection ?? null} onChange={(v) => onChange({ missedDirection: v })} />
+            </>
+          )}
+          <DetailLabel text="タッチ（1 弱い ⇔ 5 強い）" />
+          <ScalePicker value={putt.touch ?? null} left="弱" right="強" onChange={(v) => onChange({ touch: v })} />
+          <DetailLabel text="メンタル（1 ポジティブ ⇔ 5 ネガティブ）" />
+          <ScalePicker value={putt.mental ?? null} left="P" right="N" onChange={(v) => onChange({ mental: v })} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function DetailLabel({ text }: { text: string }) {
+  const colors = useColors();
+  return <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "800" }}>{text}</Text>;
+}
+
+/** 1〜5 の選択。もう一度押すと外す */
+function ScalePicker({ value, left, right, onChange }: { value: Scale5 | null; left: string; right: string; onChange: (v: Scale5 | null) => void }) {
+  const colors = useColors();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "800", width: 18, textAlign: "center" }}>{left}</Text>
+      {([1, 2, 3, 4, 5] as Scale5[]).map((n) => {
+        const active = value === n;
+        return (
+          <Pressable
+            key={n}
+            onPress={() => onChange(active ? null : n)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            style={{ flex: 1, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: active ? colors.primary : colors.background, borderWidth: 1, borderColor: active ? colors.primary : colors.border }}
+          >
+            <Text style={{ color: active ? colors.onPrimary : colors.foreground, fontSize: 16, fontWeight: "900" }}>{n}</Text>
+          </Pressable>
+        );
+      })}
+      <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "800", width: 18, textAlign: "center" }}>{right}</Text>
+    </View>
+  );
+}
+
+/**
+ * 外れた方向をカップの周りの位置で選ぶ（最初の試作シートの番号に合わせる）。
+ *   上段: 3 左奥 / 4 右奥　中段: 2 左 ・ 5 右　下段: 1 手前（ショート）
+ */
+function MissDirectionPad({ value, onChange }: { value: MissDirection | null; onChange: (v: MissDirection | null) => void }) {
+  const colors = useColors();
+  const Btn = ({ n, label }: { n: MissDirection; label: string }) => {
+    const active = value === n;
+    return (
+      <Pressable
+        onPress={() => onChange(active ? null : n)}
+        accessibilityRole="button"
+        accessibilityLabel={`外れた方向 ${label}`}
+        accessibilityState={{ selected: active }}
+        style={{ width: 84, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: active ? colors.primary : colors.background, borderWidth: 1, borderColor: active ? colors.primary : colors.border }}
+      >
+        <Text style={{ color: active ? colors.onPrimary : colors.foreground, fontSize: 14, fontWeight: "800" }}>{label}</Text>
+      </Pressable>
+    );
+  };
+  return (
+    <View style={{ alignItems: "center", gap: 6 }}>
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        <Btn n={3} label="左奥" />
+        <Btn n={4} label="右奥" />
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Btn n={2} label="左" />
+        <View accessibilityLabel="カップ" style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.foreground }} />
+        <Btn n={5} label="右" />
+      </View>
+      <Btn n={1} label="手前" />
+    </View>
   );
 }
 
