@@ -28,6 +28,14 @@ import {
   type OcrCard,
 } from "../lib/scorecard/ocr";
 
+// AI の思考量。チェック欄は画素判定で確定するので、主に数字を読むだけなら minimal で足りる。
+// 評価（scripts/scorecard/eval-ocr.ts）: minimal 275/275・1枚 30〜43 秒、low でも 89 秒かかり Vercel の上限を超えた
+const OCR_THINKING = (["minimal", "low", "medium", "high"].includes(process.env.OCR_THINKING ?? "") ? process.env.OCR_THINKING : "minimal") as
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high";
+
 const PUTT_SCHEMA = (withMiss: boolean, decimal: boolean) => ({
   type: "object",
   properties: {
@@ -185,13 +193,22 @@ export async function analyzeCard(input: AnalyzeCardInput): Promise<AnalyzeCardR
   const messages: Message[] = [{ role: "system", content: SYSTEM_PROMPT }, ...fewshot, { role: "user", content: parts }];
 
   const runPass = async (model?: string): Promise<OcrCard | null> => {
+    const t0 = Date.now();
     const response = await invokeLLM({
       messages,
       model,
       responseSchema: RESPONSE_SCHEMA as unknown as Record<string, unknown>,
-      thinkingLevel: "high",
-      thinkingBudget: 4096,
+      thinkingLevel: OCR_THINKING,
+      thinkingBudget: OCR_THINKING === "high" ? 4096 : 1024,
     });
+    // 所要時間の内訳を Vercel のログで追えるようにする（maxDuration 超過の調査用）
+    // 料金の見積もり用にトークン数も出す（思考ぶんは total − 入力 − 出力。思考も出力単価で課金される）
+    const u = response.usage;
+    const thoughts = u ? Math.max(0, u.total_tokens - u.prompt_tokens - u.completion_tokens) : 0;
+    console.log(
+      `[ocr] ${model ?? ENV.geminiModel} thinking=${OCR_THINKING} ${((Date.now() - t0) / 1000).toFixed(1)}s` +
+        (u ? ` tokens in=${u.prompt_tokens} out=${u.completion_tokens} thoughts=${thoughts}` : ""),
+    );
     const raw = response.choices[0]?.message?.content;
     if (!raw) return null;
     try {
@@ -203,6 +220,10 @@ export async function analyzeCard(input: AnalyzeCardInput): Promise<AnalyzeCardR
 
   const verifyModel = ENV.ocrVerifyModel && ENV.ocrVerifyModel !== ENV.geminiModel ? ENV.ocrVerifyModel : null;
   const [primaryResult, verifyResult] = await Promise.allSettled([runPass(), verifyModel ? runPass(verifyModel) : Promise.resolve(null)]);
+  // 片方が失敗しても読み取りは続けるが、原因を追えるようにログへ残す
+  for (const [label, r] of [["primary", primaryResult], ["verify", verifyResult]] as const) {
+    if (r.status === "rejected") console.warn(`[ocr] ${label} pass failed: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
+  }
   const primary = primaryResult.status === "fulfilled" ? primaryResult.value : null;
   const verify = verifyResult.status === "fulfilled" ? verifyResult.value : null;
   if (primaryResult.status === "rejected" && !verify) {
