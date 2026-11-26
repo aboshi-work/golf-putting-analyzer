@@ -367,6 +367,12 @@ async function createScene(
     const h = container.clientHeight || 1;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
+    // フルスクリーン縦長のスタート画面ではカップを中央やや下に、横長ヒーローカードでは右寄りに配置
+    if (mode === "hero") {
+      if (w / h < 0.85) target.set(-0.2, 0.58, 0.35);
+      else target.set(-2.0, 0.32, -0.55);
+      placeCamera();
+    }
     // 縦長の画面では引きを増やして 15m のリングまで収める
     camera.zoom = mode === "map" ? Math.min(1, (w / h) * 0.82) : 1;
     camera.updateProjectionMatrix();

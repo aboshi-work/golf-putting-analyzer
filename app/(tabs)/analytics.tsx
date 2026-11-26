@@ -149,7 +149,7 @@ export default function AnalyticsScreen() {
     <ScreenContainer>
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={{ paddingBottom: 40, alignItems: "center" }}
+        contentContainerStyle={{ paddingBottom: 116, alignItems: "center" }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={100}
         onScroll={(e) => {
@@ -313,7 +313,7 @@ export default function AnalyticsScreen() {
           onPress={() => jump("toc")}
           accessibilityRole="button"
           accessibilityLabel="目次へ戻る"
-          style={{ position: "absolute", right: 16, bottom: 16, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.primary, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}
+          style={{ position: "absolute", right: 16, bottom: 98, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.primary, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}
         >
           <IconSymbol name="chevron.up" size={18} color={colors.onPrimary} />
           <Text style={{ color: colors.onPrimary, fontSize: 15, fontWeight: "800" }}>目次へ</Text>

@@ -155,7 +155,7 @@ export default function ProfileScreen() {
   return (
     <ScreenContainer>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ alignItems: "center", paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ alignItems: "center", paddingBottom: 112 }} showsVerticalScrollIndicator={false}>
           <View style={{ width: contentW, gap: 16, paddingTop: 14 }}>
             <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 28, fontWeight: "700", letterSpacing: 0.2 }}>
               プロフィール
