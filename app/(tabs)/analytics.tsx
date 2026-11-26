@@ -158,18 +158,38 @@ export default function AnalyticsScreen() {
         }}
       >
         <View style={{ width: contentW, gap: 16, paddingTop: 14 }}>
-          <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 28, fontWeight: "700", letterSpacing: 0.2 }}>
               分析
             </Text>
-            <Pressable
-              onPress={() => router.push("/guide" as never)}
-              accessibilityRole="link"
-              style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40, paddingHorizontal: 4 }}
-            >
-              <IconSymbol name="info.circle" size={17} color={colors.primary} />
-              <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "700" }}>分析の見方</Text>
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Pressable
+                onPress={() => router.push(`/report?period=${period}&baseline=${baseline}` as never)}
+                accessibilityRole="button"
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  minHeight: 36,
+                  paddingHorizontal: 10,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                }}
+              >
+                <IconSymbol name="doc.text" size={16} color={colors.primary} />
+                <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>診断レポート</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => router.push("/guide" as never)}
+                accessibilityRole="link"
+                style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: 36, paddingHorizontal: 4 }}
+              >
+                <IconSymbol name="info.circle" size={17} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "700" }}>見方</Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={{ gap: 10 }}>

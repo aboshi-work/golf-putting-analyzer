@@ -45,6 +45,16 @@ const MISS_OPTIONS: { value: MissLength; label: string }[] = [
   { value: "long", label: "オーバー" },
 ];
 const ORDINAL = ["1st", "2nd", "3rd"];
+const DIST_PRESETS_M = [
+  [1, 2, 3, 5, 8, 10, 15],
+  [0.5, 1, 1.5, 2, 3],
+  [0.5, 1, 1.5, 2],
+];
+const DIST_PRESETS_STEP = [
+  [1, 2, 4, 6, 10, 15],
+  [1, 2, 3, 4],
+  [1, 2, 3],
+];
 /** 2段のライン（詳しく） */
 const UD2_OPTIONS: { value: SlopeUpDown; label: string }[] = [
   { value: "up_down", label: "上って下る" },
@@ -345,31 +355,114 @@ export default function HoleInputScreen() {
                       {[shiftLabel(draft.puttFor, i), holed ? "カップイン" : "外れ"].filter(Boolean).join("・")}
                     </Text>
                   </View>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <TextInput
-                      value={draft.distText[i]}
-                      onChangeText={(t) => setDist(i, t)}
-                      keyboardType="decimal-pad"
-                      inputMode="decimal"
-                      placeholder={unit === "m" ? (i === 0 ? "例 8" : "例 1.2") : "歩数"}
-                      placeholderTextColor={colors.muted}
-                      accessibilityLabel={`${ORDINAL[i]}パットの距離`}
-                      style={{
-                        flex: 1,
-                        height: 52,
-                        borderRadius: 14,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.background,
-                        paddingHorizontal: 14,
-                        fontSize: 22,
-                        fontWeight: "800",
-                        color: colors.foreground,
-                      }}
-                    />
-                    <Text style={{ color: colors.muted, fontSize: 16, fontWeight: "700", width: 64 }}>
-                      {unit === "m" ? "m" : p.meters != null ? `= ${p.meters}m` : "歩"}
-                    </Text>
+                  <View style={{ gap: 8 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Pressable
+                        onPress={() => {
+                          const step = unit === "m" ? 0.5 : 1;
+                          const cur = Number(draft.distText[i]) || 0;
+                          const next = Math.max(step, Math.round((cur - step) * 10) / 10);
+                          hapticLight();
+                          setDist(i, String(next));
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${ORDINAL[i]}パットの距離を減らす`}
+                        style={{
+                          width: 46,
+                          height: 50,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.background,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <IconSymbol name="minus" size={20} color={colors.foreground} />
+                      </Pressable>
+                      <TextInput
+                        value={draft.distText[i]}
+                        onChangeText={(t) => setDist(i, t)}
+                        keyboardType="decimal-pad"
+                        inputMode="decimal"
+                        placeholder={unit === "m" ? (i === 0 ? "例 8" : "例 1.2") : "歩数"}
+                        placeholderTextColor={colors.muted}
+                        accessibilityLabel={`${ORDINAL[i]}パットの距離`}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          height: 50,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.background,
+                          paddingHorizontal: 10,
+                          fontSize: 22,
+                          fontWeight: "800",
+                          textAlign: "center",
+                          fontVariant: ["tabular-nums"],
+                          color: colors.foreground,
+                        }}
+                      />
+                      <Pressable
+                        onPress={() => {
+                          const step = unit === "m" ? 0.5 : 1;
+                          const cur = Number(draft.distText[i]) || 0;
+                          const next = Math.round((cur + step) * 10) / 10;
+                          hapticLight();
+                          setDist(i, String(next));
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${ORDINAL[i]}パットの距離を増やす`}
+                        style={{
+                          width: 46,
+                          height: 50,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.background,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <IconSymbol name="plus" size={20} color={colors.foreground} />
+                      </Pressable>
+                      <Text style={{ color: colors.muted, fontSize: 15, fontWeight: "700", minWidth: unit === "m" ? 20 : 54 }}>
+                        {unit === "m" ? "m" : p.meters != null ? `= ${p.meters}m` : "歩"}
+                      </Text>
+                    </View>
+                    {/* よく使う距離のワンタップ選択 */}
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                      {(unit === "m" ? DIST_PRESETS_M[i] : DIST_PRESETS_STEP[i]).map((val) => {
+                        const active = Number(draft.distText[i]) === val && draft.distText[i] !== "";
+                        return (
+                          <Pressable
+                            key={val}
+                            onPress={() => {
+                              hapticLight();
+                              setDist(i, String(val));
+                            }}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                            style={{
+                              minWidth: 46,
+                              minHeight: 36,
+                              paddingHorizontal: 10,
+                              borderRadius: 9,
+                              borderWidth: 1,
+                              borderColor: active ? colors.primary : colors.border,
+                              backgroundColor: active ? colors.primary : colors.background,
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Text style={{ color: active ? colors.onPrimary : colors.foreground, fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] }}>
+                              {unit === "m" ? `${val}m` : `${val}歩`}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   </View>
                   {i < 2 && (
                     <>
