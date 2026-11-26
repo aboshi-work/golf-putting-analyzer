@@ -142,6 +142,35 @@ function simulateHole(r: () => number, holeNumber: number, skill: Skill): HoleDa
   return buildHole({ holeNumber, puttFor, totalPutts: total, putts: putts.slice(0, 3) });
 }
 
+/**
+ * デモ用の詳しい記録（外れた方向・タッチ・メンタル・2段のライン・乗せたショットの距離）。
+ * 癖: 右に曲がるラインは右に外しがち、ショートはタッチが弱め、3パットしたホールはメンタルがネガティブ寄り
+ */
+function addDetail(holes: HoleData[], r: () => number): void {
+  for (const hole of holes) {
+    const first = hole.putts[0];
+    if (!first) continue;
+    first.distPrev = Math.round(Math.min(220, Math.max(15, lognormal(r, 115, 0.45))));
+    hole.putts.forEach((p, k) => {
+      const shortMiss = p.missLength === "short";
+      const longMiss = p.missLength === "long";
+      p.touch = (shortMiss ? (r() < 0.6 ? 2 : 3) : longMiss ? (r() < 0.6 ? 4 : 5) : pickWeighted(r, [[2, 1], [3, 4], [4, 2]])) as 1 | 2 | 3 | 4 | 5;
+      const tense = hole.totalPutts >= 3 && k >= 1 ? 1.5 : p.lineUD === "downhill" ? 0.7 : 0;
+      p.mental = Math.min(5, Math.max(1, Math.round(2 + tense + (r() - 0.5) * 1.6))) as 1 | 2 | 3 | 4 | 5;
+      if (!p.cupIn) {
+        if (shortMiss) p.missedDirection = 1;
+        else if (p.lineLR === "right") p.missedDirection = r() < 0.65 ? 5 : 4;
+        else if (p.lineLR === "left") p.missedDirection = r() < 0.55 ? 2 : 3;
+        else p.missedDirection = pickWeighted(r, [[1, 2], [2, 1], [3, 1], [4, 1], [5, 1]]) as 1 | 2 | 3 | 4 | 5;
+      }
+      if (p.lineUD === "uphill" && r() < 0.12) p.lineUD = "up_down";
+      if (p.lineUD === "downhill" && r() < 0.12) p.lineUD = "down_up";
+      if (p.lineLR === "left" && r() < 0.1) p.lineLR = "left_right";
+      if (p.lineLR === "right" && r() < 0.1) p.lineLR = "right_left";
+    });
+  }
+}
+
 export function generateDemoRounds(count = 22, seed = 20260925): Round[] {
   const r = rng(seed);
   const start = new Date(2026, 2, 8); // 2026-03-08
@@ -153,6 +182,8 @@ export function generateDemoRounds(count = 22, seed = 20260925): Round[] {
     const putter = i >= 15 && r() < 0.6 ? DEMO_PUTTERS[1] : DEMO_PUTTERS[0];
     const skill: Skill = { improvement: i / (count - 1) };
     const holes = Array.from({ length: 18 }, (_, h) => simulateHole(r, h + 1, skill));
+    // 直近8ラウンドは「詳しく（任意）」も記録した想定（別の乱数で足すので、ほかの数字は変わらない）
+    if (i >= count - 8) addDetail(holes, rng(seed + (i + 1) * 7919));
     const now = `${ymd}T12:00:00.000Z`;
     rounds.push({
       id: `demo-r${i + 1}`,

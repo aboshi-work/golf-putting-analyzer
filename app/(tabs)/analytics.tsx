@@ -22,6 +22,7 @@ import { useBaseline } from "@/hooks/use-baseline";
 import { getRoundsWithHoles, getUserProfile } from "@/lib/storage";
 import {
   BASELINES,
+  detailStats,
   greenPoints,
   groupSg,
   holeObservations,
@@ -36,6 +37,7 @@ import {
   sgSummary,
   stimpBand,
   type BaselineId,
+  type DetailStats,
 } from "@/lib/putting-stats";
 import { LABELS, type Round, type ScoreResult } from "@/lib/types";
 
@@ -117,6 +119,7 @@ export default function AnalyticsScreen() {
       speeds: groupSg(holes, (r) => stimpBand(r.stimpmeter)),
       grass: groupSg(holes, (r) => (r.grassType ? LABELS.grassType[r.grassType] : null)),
       courses: groupSg(holes, (r) => r.courseName || null),
+      detail: detailStats(holes),
     };
   }, [rounds, period, baseline]);
 
@@ -255,6 +258,10 @@ export default function AnalyticsScreen() {
               </Card>
               </View>
 
+              <View {...anchor("detail")}>
+                <DetailCard detail={data.detail} chartW={chartW} baselineShort={base.short} />
+              </View>
+
               <View {...anchor("conditions")}>
               <ConditionsCard
                 chartW={chartW}
@@ -289,7 +296,7 @@ export default function AnalyticsScreen() {
   );
 }
 
-type SectionId = "toc" | "summary" | "map" | "practice" | "band" | "make" | "lag" | "line" | "puttFor" | "trend" | "conditions";
+type SectionId = "toc" | "summary" | "map" | "practice" | "band" | "make" | "lag" | "line" | "puttFor" | "trend" | "detail" | "conditions";
 /** 目次に出すセクション（画面の並び順） */
 const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "summary", label: "総合" },
@@ -301,8 +308,101 @@ const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "line", label: "ライン" },
   { id: "puttFor", label: "何のパット" },
   { id: "trend", label: "推移" },
+  { id: "detail", label: "詳しい記録" },
   { id: "conditions", label: "条件別" },
 ];
+
+const MISS_DIR_LABEL: Record<number, string> = { 1: "手前", 2: "左", 3: "左奥", 4: "右奥", 5: "右" };
+
+/** 手入力の「詳しく（任意）」で入れた項目の傾向 */
+function DetailCard({ detail, chartW, baselineShort }: { detail: DetailStats; chartW: number; baselineShort: string }) {
+  const colors = useColors();
+  if (detail.recordedPutts === 0 && detail.byApproach.length === 0) {
+    return (
+      <Card>
+        <SectionTitle title="詳しい記録の傾向" subtitle="外れた方向・タッチ・メンタル・2段のライン・乗せたショットの距離" />
+        <Text style={{ color: colors.foreground, fontSize: 15, lineHeight: 22 }}>
+          手入力の各パットにある「詳しく（任意）」で記録すると、外れ方の癖や、タッチ・メンタルによる損得がここに出ます。
+        </Text>
+      </Card>
+    );
+  }
+  const md = detail.missDir;
+  const pct = (n: number) => (md.total ? Math.round((n / md.total) * 100) : 0);
+  const top = md.total
+    ? ([1, 2, 3, 4, 5] as const).reduce((a, b) => (md.counts[b] > md.counts[a] ? b : a), 1 as 1 | 2 | 3 | 4 | 5)
+    : null;
+  const DirCell = ({ n }: { n: 1 | 2 | 3 | 4 | 5 }) => {
+    const p = pct(md.counts[n]);
+    const strong = top === n;
+    return (
+      <View style={{ width: 88, paddingVertical: 6, borderRadius: 12, alignItems: "center", backgroundColor: strong ? `${colors.warning}33` : colors.background, borderWidth: 1, borderColor: strong ? colors.warning : colors.border }}>
+        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>{MISS_DIR_LABEL[n]}</Text>
+        <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{`${p}%`}</Text>
+      </View>
+    );
+  };
+  return (
+    <Card>
+      <SectionTitle title="詳しい記録の傾向" subtitle={`手入力の「詳しく」で記録した ${detail.recordedPutts} 打。損得は距離の違いを補正済み（${baselineShort}比・1打あたり）`} />
+
+      {md.total > 0 && (
+        <View style={{ gap: 10 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>{`外れた方向（${md.total}回）`}</Text>
+          <View style={{ alignItems: "center", gap: 6 }}>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <DirCell n={3} />
+              <DirCell n={4} />
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <DirCell n={2} />
+              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.foreground }} />
+              <DirCell n={5} />
+            </View>
+            <DirCell n={1} />
+          </View>
+          {top && <Note>{`いちばん多いのは「${MISS_DIR_LABEL[top]}」（${pct(md.counts[top])}%）。カップを上から見て、下が自分側です。`}</Note>}
+        </View>
+      )}
+
+      {detail.byTouch.length > 0 && (
+        <View style={{ gap: 6, marginTop: 14 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>タッチ別（1 弱い ⇔ 5 強い）</Text>
+          <DivergingBars width={chartW} rows={detail.byTouch.map((r) => ({ label: `${r.label}（${r.putts}）`, value: r.sgPerPutt }))} />
+        </View>
+      )}
+
+      {detail.byMental.length > 0 && (
+        <View style={{ gap: 6, marginTop: 14 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>メンタル別（1 ポジティブ ⇔ 5 ネガティブ）</Text>
+          <DivergingBars width={chartW} rows={detail.byMental.map((r) => ({ label: `${r.label}（${r.putts}）`, value: r.sgPerPutt }))} />
+        </View>
+      )}
+
+      {detail.twoStage.length > 0 && (
+        <View style={{ gap: 6, marginTop: 14 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>2段のライン（7m以内）</Text>
+          <DivergingBars width={chartW} rows={detail.twoStage.map((r) => ({ label: `${r.label}（${r.putts}）`, value: r.sgPerPutt }))} />
+        </View>
+      )}
+
+      {detail.byApproach.length > 0 && (
+        <View style={{ gap: 8, marginTop: 14 }}>
+          <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>乗せたショットの距離別</Text>
+          {detail.byApproach.map((r) => (
+            <View key={r.label} style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "800", width: 96 }}>{r.label}</Text>
+              <Text style={{ color: colors.muted, fontSize: 14, flex: 1 }}>{`1st 平均 ${r.avgFirstMeters.toFixed(1)}m・${r.holes}H`}</Text>
+              <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{`${formatStrokes(r.sgPerHole, 2)}打/H`}</Text>
+            </View>
+          ))}
+          <Note>乗せたショットが近いほど 1st は短くなるのが普通です。距離の割に損をしている帯は、ショットではなくパットの課題です。</Note>
+        </View>
+      )}
+      <Note>回数が少ないうちは参考程度に見てください。</Note>
+    </Card>
+  );
+}
 
 // ─── 結論カード ─────────────────────────────────────────────────────────────
 

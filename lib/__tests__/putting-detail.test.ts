@@ -27,3 +27,48 @@ describe("詳しい記録（外れた方向・タッチ・メンタル・乗せ�
     expect(back.putts[1]).toMatchObject({ missedDirection: null, touch: 3, mental: 1 });
   });
 });
+
+import { detailStats, holeObservations } from "../putting-stats";
+import type { Round } from "../types";
+
+describe("detailStats", () => {
+  const round = {
+    id: "r1",
+    date: "2026-11-20",
+    courseName: "Test",
+    holes: [
+      buildHole({
+        holeNumber: 1,
+        puttFor: "birdie",
+        totalPutts: 2,
+        approachYards: 120,
+        putts: [
+          { meters: 6, lineUD: "up_down", lineLR: "right", missLength: "short", missedDirection: 1, touch: 2, mental: 3 },
+          { meters: 0.8, touch: 3, mental: 2 },
+        ],
+      }),
+      buildHole({
+        holeNumber: 2,
+        puttFor: "par",
+        totalPutts: 2,
+        approachYards: 40,
+        putts: [
+          { meters: 3, lineLR: "right", missedDirection: 5, touch: 4, mental: 4 },
+          { meters: 1.0, touch: 3 },
+        ],
+      }),
+    ],
+  } as unknown as Round;
+
+  it("外れた方向・タッチ・メンタル・2段のライン・乗せたショットの距離を数える", () => {
+    const d = detailStats(holeObservations([round], "hc15"));
+    expect(d.recordedPutts).toBe(4);
+    expect(d.missDir.total).toBe(2);
+    expect(d.missDir.counts[1]).toBe(1);
+    expect(d.missDir.counts[5]).toBe(1);
+    expect(d.byTouch.map((r) => [r.key, r.putts])).toEqual([["2", 1], ["3", 2], ["4", 1]]);
+    expect(d.byMental.map((r) => r.key)).toEqual(["2", "3", "4"]);
+    expect(d.twoStage.map((r) => [r.key, r.putts])).toEqual([["up_down", 1]]);
+    expect(d.byApproach.map((r) => [r.label, r.holes])).toEqual([["〜50yd", 1], ["100〜150yd", 1]]);
+  });
+});
