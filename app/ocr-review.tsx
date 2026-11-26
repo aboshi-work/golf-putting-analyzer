@@ -1,10 +1,11 @@
 /**
- * 読み取り結果の確認（カード v3）。
- * - 面ごとに補正済みのカード画像と9行の読み取り結果を並べる
- * - 「要確認」（二重読み・画素判定との食い違い）と記入ルールの矛盾を行ごとに表示。直すと消える
+ * 読み取り結果の確認（カード v4）。
+ * - カードごとに補正済みの画像と9ホールの読み取り結果を、カードと同じ2段の並びで表示する
+ * - 「要確認」（二重読み・画素判定との食い違い）と記入ルールの矛盾を欄ごとに色で示す。直すか「このままでOK」で消える
+ * - 「次の要確認へ」で要確認のあるホールだけを順に開いて見直せる
  * - 既存ラウンドに保存、またはカードの日付・コース名で新しいラウンドを作る
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 
@@ -16,7 +17,7 @@ import { shadowPrimary, shadowSm } from "@/lib/card-shadow";
 import { hapticSuccess } from "@/lib/haptics";
 import { clearOcrSession, getOcrSession, type SideResult } from "@/lib/ocr-session";
 import { CARD_H, CARD_W, holeNumberFor, LR_OPTIONS, MISS_OPTIONS, PUTT_FOR_OPTIONS, UD_OPTIONS, type CardSide } from "@/lib/scorecard/layout";
-import { cardDateToYmd, effectiveTotal, rowHasData, rowToHole, validateRow, type OcrRow } from "@/lib/scorecard/ocr";
+import { cardDateToYmd, rowHasData, rowToHole, validateRow, type OcrRow } from "@/lib/scorecard/ocr";
 import { getPutters, saveHolesForRound, saveRound } from "@/lib/storage";
 import type { HoleData, Round } from "@/lib/types";
 
@@ -33,14 +34,17 @@ function todayYmd() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function summary(row: OcrRow): string {
-  if (!rowHasData(row)) return "記入なし";
-  const parts: string[] = [];
-  if (row.puttFor) parts.push(LABEL.puttFor[row.puttFor]);
-  const dists = [row.p1.meters, row.p2.meters, row.p3.meters].filter((m): m is number => m != null);
-  if (dists.length) parts.push(dists.map((m) => `${m}m`).join("→"));
-  parts.push(`${effectiveTotal(row)}パット`);
-  return parts.join("・");
+const SHORT = {
+  ud: { F: "平", U: "上", D: "下" } as Record<string, string>,
+  lr: { S: "直", L: "左", R: "右" } as Record<string, string>,
+  miss: { short: "短", long: "長" } as Record<string, string>,
+};
+
+/** 1パットぶんの要約（例 "8m 上・右・短"）。何も無ければ null */
+function puttText(p: { meters: number | null; ud?: string | null; lr?: string | null; miss?: string | null }): string | null {
+  const marks = [p.ud ? SHORT.ud[p.ud] : null, p.lr ? SHORT.lr[p.lr] : null, p.miss ? SHORT.miss[p.miss] : null].filter(Boolean);
+  if (p.meters == null && marks.length === 0) return null;
+  return [p.meters != null ? `${p.meters}m` : "?m", marks.join("・")].filter(Boolean).join(" ");
 }
 
 export default function OcrReviewScreen() {
@@ -57,6 +61,10 @@ export default function OcrReviewScreen() {
   const [course, setCourse] = useState(() => session?.results.find((r) => r.card.course)?.card.course ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  /** ホールの行の y 位置（ScrollView の中身の座標）。「次の要確認へ」でスクロールする先 */
+  const rowY = useRef<Record<string, number>>({});
+  const sideY = useRef<Record<string, number>>({});
 
   // 要確認のある最初の行を開いておく
   useEffect(() => {
@@ -71,6 +79,42 @@ export default function OcrReviewScreen() {
   }, []);
 
   const issueCount = sides.reduce((n, s) => n + s.conflicts.length + Object.values(s.warnings).reduce((a, w) => a + w.length, 0), 0);
+  /** 要確認のあるホールの id（上から順） */
+  const issueRows = sides.flatMap((s) =>
+    s.card.rows.flatMap((_, i) => (s.conflicts.some((c) => c.startsWith(`rows[${i}]`)) || (s.warnings[i]?.length ?? 0) > 0 ? [`${s.side}-${i}`] : [])),
+  );
+  /** 開いたあとでスクロールする先（開閉で位置がずれるので、描き直してから測る） */
+  const scrollTarget = useRef<string | null>(null);
+  const goNextIssue = () => {
+    if (issueRows.length === 0) return;
+    const at = open ? issueRows.indexOf(open) : -1;
+    const next = issueRows[(at + 1) % issueRows.length];
+    scrollTarget.current = next;
+    setOpen(next);
+  };
+  useEffect(() => {
+    const target = scrollTarget.current;
+    if (!target || target !== open) return;
+    const t = setTimeout(() => {
+      const side = target.split("-")[0];
+      const y = (sideY.current[side] ?? 0) + (rowY.current[target] ?? 0);
+      scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
+      scrollTarget.current = null;
+    }, 80);
+    return () => clearTimeout(t);
+  }, [open]);
+  /** そのホールの要確認と警告を、直さずに消す（画像と見比べて合っていたとき） */
+  const acceptRow = (side: CardSide, index: number) => {
+    setSides((prev) =>
+      prev.map((s) => {
+        if (s.side !== side) return s;
+        const warnings = { ...s.warnings };
+        delete warnings[index];
+        return { ...s, warnings, conflicts: s.conflicts.filter((c) => !c.startsWith(`rows[${index}]`)) };
+      }),
+    );
+    if (open === `${side}-${index}`) setOpen(null);
+  };
   const holes: HoleData[] = useMemo(
     () => sides.flatMap((s) => s.card.rows.flatMap((row, i) => (rowToHole(s.side, i, row) ? [rowToHole(s.side, i, row)!] : []))),
     [sides],
@@ -154,13 +198,13 @@ export default function OcrReviewScreen() {
         </Pressable>
         <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 18, fontWeight: "900", flex: 1 }}>読み取り結果の確認</Text>
       </View>
-      <ScrollView contentContainerStyle={{ alignItems: "center", paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={{ alignItems: "center", paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
         <View style={{ width: contentW, gap: 14, paddingTop: 6 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 16, backgroundColor: issueCount ? `${colors.warning}1A` : `${colors.success}1A` }}>
             <IconSymbol name={issueCount ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"} size={22} color={issueCount ? colors.warning : colors.success} />
             <Text style={{ color: colors.foreground, fontSize: 15, flex: 1, lineHeight: 21 }}>
               {issueCount
-                ? `要確認が ${issueCount} 件あります。色の付いた項目をカードの画像と見比べてください。`
+                ? `要確認が ${issueRows.length} ホールあります。黄色の欄をカードの画像と見比べ、直すか「このままでOK」を押してください。`
                 : `${holes.length}ホールを読み取りました。念のため画像と見比べてから保存してください。`}
             </Text>
           </View>
@@ -177,18 +221,18 @@ export default function OcrReviewScreen() {
           {sides.map((s) => {
             const key = s.side;
             return (
-              <View key={key} style={{ gap: 8 }}>
+              <View key={key} style={{ gap: 8 }} onLayout={(e) => (sideY.current[key] = e.nativeEvent.layout.y)}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: "900" }}>{s.side === "out" ? "OUT（1〜9番）" : "IN（10〜18番）"}</Text>
-                  {s.preview && (
+                  {(s.preview || s.previewUri) && (
                     <Pressable onPress={() => setShowImage((v) => ({ ...v, [key]: !v[key] }))} style={{ minHeight: 44, justifyContent: "center" }}>
                       <Text style={{ color: colors.primary, fontSize: 15, fontWeight: "800" }}>{showImage[key] ? "画像を閉じる" : "カードの画像を見る"}</Text>
                     </Pressable>
                   )}
                 </View>
-                {showImage[key] && s.preview && (
+                {showImage[key] && (s.preview || s.previewUri) && (
                   <Image
-                    source={{ uri: `data:image/jpeg;base64,${s.preview}` }}
+                    source={{ uri: s.previewUri ?? `data:image/jpeg;base64,${s.preview}` }}
                     style={{ width: contentW, height: contentW / CARD_ASPECT, borderRadius: 12, backgroundColor: colors.surface }}
                     resizeMode="contain"
                     accessibilityLabel="補正済みのカード画像"
@@ -201,15 +245,20 @@ export default function OcrReviewScreen() {
                   const expanded = open === id;
                   const hasIssue = flags.length + warns.length > 0;
                   return (
-                    <View key={id} style={{ backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: hasIssue ? colors.warning : colors.border, overflow: "hidden" }}>
+                    <View
+                      key={id}
+                      onLayout={(e) => (rowY.current[id] = e.nativeEvent.layout.y)}
+                      style={{ backgroundColor: colors.surface, borderRadius: 16, borderWidth: hasIssue ? 2 : 1, borderColor: hasIssue ? colors.warning : colors.border, overflow: "hidden" }}
+                    >
                       <Pressable
                         onPress={() => setOpen(expanded ? null : id)}
                         accessibilityRole="button"
                         accessibilityState={{ expanded }}
-                        style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 12, minHeight: 56 }}
+                        accessibilityLabel={`${holeNumberFor(s.side, i)}番ホール${hasIssue ? "、要確認あり" : ""}`}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, minHeight: 64 }}
                       >
-                        <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: "900", width: 40 }}>{`${holeNumberFor(s.side, i)}`}</Text>
-                        <Text style={{ color: rowHasData(row) ? colors.foreground : colors.muted, fontSize: 15, flex: 1 }}>{summary(row)}</Text>
+                        <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: "900", width: 34, textAlign: "center" }}>{`${holeNumberFor(s.side, i)}`}</Text>
+                        <CardRowView row={row} flags={flags} />
                         {hasIssue && <IconSymbol name="exclamationmark.triangle.fill" size={18} color={colors.warning} />}
                         <IconSymbol name="chevron.down" size={20} color={colors.muted} style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }} />
                       </Pressable>
@@ -219,6 +268,7 @@ export default function OcrReviewScreen() {
                           flags={flags}
                           warnings={warns}
                           onEdit={(path, fn) => editRow(s.side, i, path, fn)}
+                          onAccept={hasIssue ? () => acceptRow(s.side, i) : undefined}
                         />
                       )}
                     </View>
@@ -230,7 +280,20 @@ export default function OcrReviewScreen() {
           {error && <ErrorBanner message={error} />}
         </View>
       </ScrollView>
-      <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }}>
+      <View style={{ padding: 12, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }}>
+        {issueRows.length > 0 && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <IconSymbol name="exclamationmark.triangle.fill" size={18} color={colors.warning} />
+            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "800", flex: 1 }}>{`要確認 あと ${issueRows.length} ホール`}</Text>
+            <Pressable
+              onPress={goNextIssue}
+              accessibilityRole="button"
+              style={{ minHeight: 44, paddingHorizontal: 16, borderRadius: 12, justifyContent: "center", backgroundColor: colors.warning }}
+            >
+              <Text style={{ color: "#1A1A1A", fontSize: 15, fontWeight: "900" }}>次の要確認へ</Text>
+            </Pressable>
+          </View>
+        )}
         <Pressable
           onPress={() => void save()}
           disabled={saving}
@@ -260,7 +323,58 @@ function LabeledInput({ label, value, onChange, placeholder }: { label: string; 
   );
 }
 
-function RowEditor({ row, flags, warnings, onEdit }: { row: OcrRow; flags: string[]; warnings: string[]; onEdit: (path: string, fn: (r: OcrRow) => OcrRow) => void }) {
+/** 閉じた状態の1ホール。カードと同じ2段（上段: 何のパット・1st / 下段: 計・2nd・3rd）。要確認の欄は黄色 */
+function CardRowView({ row, flags }: { row: OcrRow; flags: string[] }) {
+  const colors = useColors();
+  if (!rowHasData(row)) {
+    return <Text style={{ color: colors.muted, fontSize: 15, flex: 1 }}>記入なし</Text>;
+  }
+  const flaggedAny = (prefix: string) => flags.some((f) => f === prefix || f.startsWith(`${prefix}.`));
+  const Cell = ({ label, text, flagged, strong }: { label: string; text: string | null; flagged: boolean; strong?: boolean }) => (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "baseline",
+        gap: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6,
+        backgroundColor: flagged ? `${colors.warning}40` : "transparent",
+      }}
+    >
+      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>{label}</Text>
+      <Text style={{ color: text ? colors.foreground : colors.muted, fontSize: strong ? 15 : 14, fontWeight: strong ? "900" : "700" }}>{text ?? "—"}</Text>
+    </View>
+  );
+  return (
+    <View style={{ flex: 1, gap: 3 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 2 }}>
+        <Cell label="" text={row.puttFor ? LABEL.puttFor[row.puttFor] : null} flagged={flaggedAny("puttFor")} strong />
+        <Cell label="1st" text={puttText(row.p1)} flagged={flaggedAny("p1")} />
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 2 }}>
+        <Cell label="計" text={row.total != null ? String(row.total) : null} flagged={flaggedAny("total")} strong />
+        <Cell label="2nd" text={puttText(row.p2)} flagged={flaggedAny("p2")} />
+        {(row.p3.meters != null || flaggedAny("p3")) && <Cell label="3rd" text={puttText(row.p3)} flagged={flaggedAny("p3")} />}
+      </View>
+    </View>
+  );
+}
+
+function RowEditor({
+  row,
+  flags,
+  warnings,
+  onEdit,
+  onAccept,
+}: {
+  row: OcrRow;
+  flags: string[];
+  warnings: string[];
+  onEdit: (path: string, fn: (r: OcrRow) => OcrRow) => void;
+  /** 要確認があるときだけ。押すとこのホールの要確認と警告を消す */
+  onAccept?: () => void;
+}) {
   const colors = useColors();
   const flagged = (p: string) => flags.includes(p);
   return (
@@ -268,6 +382,15 @@ function RowEditor({ row, flags, warnings, onEdit }: { row: OcrRow; flags: strin
       {warnings.map((w) => (
         <Text key={w} style={{ color: colors.foreground, fontSize: 14 }}>{`⚠ ${w}`}</Text>
       ))}
+      {onAccept && (
+        <Pressable
+          onPress={onAccept}
+          accessibilityRole="button"
+          style={{ minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: colors.success, alignItems: "center", justifyContent: "center" }}
+        >
+          <Text style={{ color: colors.success, fontSize: 15, fontWeight: "900" }}>画像と同じなので、このままでOK</Text>
+        </Pressable>
+      )}
       <Line label="何のパット" flagged={flagged("puttFor")}>
         <Pick options={PUTT_FOR_OPTIONS} labels={LABEL.puttFor} value={row.puttFor} onChange={(v) => onEdit("puttFor", (r) => ({ ...r, puttFor: v }))} />
       </Line>

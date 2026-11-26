@@ -92,16 +92,25 @@ export default function NewRoundScreen() {
     }
   };
 
+  /** そのステップで足りない入力（次へ進む前に止める）。問題なければ null */
+  const stepProblem = (s: number): string | null => {
+    if (s === 1 && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime()))) {
+      return "日付は YYYY-MM-DD 形式で入力してください";
+    }
+    if (s === 2 && !courseName.trim()) return "コース名を入力してください";
+    return null;
+  };
+
   const handleCreateRound = async () => {
     setError(null);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())) {
-      setError("日付は YYYY-MM-DD 形式で入力してください");
-      setStep(1);
-      return;
-    }
-    if (!courseName) {
-      setError("コース名を入力してください");
-      return;
+    // 前のステップの入力漏れは、そのステップに戻して知らせる
+    for (const s of [1, 2]) {
+      const problem = stepProblem(s);
+      if (problem) {
+        setError(problem);
+        setStep(s);
+        return;
+      }
     }
     if (!selectedPutterId) {
       setError("使用パターを選択してください");
@@ -548,6 +557,11 @@ export default function NewRoundScreen() {
             disabled={isSubmitting}
             onPress={() => {
               if (step < 4) {
+                const problem = stepProblem(step);
+                if (problem) {
+                  setError(problem);
+                  return;
+                }
                 setError(null);
                 setStep(step + 1);
               } else {

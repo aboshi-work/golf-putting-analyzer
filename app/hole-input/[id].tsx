@@ -197,7 +197,9 @@ export default function HoleInputScreen() {
         </View>
 
         {/* ホール選択 */}
-        <ScrollView ref={stripRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 6 }} style={{ flexGrow: 0 }}>
+        <ScrollView ref={stripRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 6 }}
+          // Web では flexShrink の既定が 1 なので、下の ScrollView に押されて「2打」の段が切れていた
+          style={{ flexGrow: 0, flexShrink: 0 }}>
           {Array.from({ length: 18 }, (_, i) => i + 1).map((n) => {
             const d = drafts[n];
             const filled = d && d.totalPutts > 0;

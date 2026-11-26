@@ -19,6 +19,7 @@ import { useColors } from "@/hooks/use-colors";
 import { shadowPrimary, shadowSm } from "@/lib/card-shadow";
 import { hapticLight } from "@/lib/haptics";
 import { prepareScorecardImage, type PreparedImage } from "@/lib/ocr-image";
+import { demoOcrResults } from "@/lib/demo-ocr";
 import { setOcrSession, type SideResult } from "@/lib/ocr-session";
 import { useIsDemo } from "@/lib/session-context";
 import { CARD_H, CARD_W, type CardSide } from "@/lib/scorecard/layout";
@@ -263,7 +264,22 @@ export default function ScanCardScreen() {
       <ScrollView contentContainerStyle={{ alignItems: "center", paddingBottom: 24 }}>
         <View style={{ width: contentW, gap: 14, paddingTop: 8 }}>
           {isDemo && (
-            <ErrorBanner title="デモモードでは読み取りを使えません" message="カードの読み取り（AI）はログインが必要です。デモでは手入力と分析をお試しください。" />
+            <View style={[{ backgroundColor: colors.surface, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 10 }, shadowSm]}>
+              <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>デモモードでは、サンプルのカードで試せます</Text>
+              <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>
+                実際の読み取り（AI）はログインが必要です。記入済みのサンプルを読み取った結果で、確認と保存の流れを試せます。
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setOcrSession({ roundId, results: demoOcrResults() });
+                  router.push("/ocr-review" as never);
+                }}
+                accessibilityRole="button"
+                style={{ minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary }}
+              >
+                <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: "900" }}>サンプルのカードで試す</Text>
+              </Pressable>
+            </View>
           )}
           {error && <ErrorBanner title="読み取りエラー" message={error} />}
           {notice && (
