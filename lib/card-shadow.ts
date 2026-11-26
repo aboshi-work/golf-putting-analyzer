@@ -1,6 +1,4 @@
-// エレベーション（影）スケール。フラットな border 表現を避け、ネイティブアプリらしい
-// 階層的な奥行きを出す。用途別に sm / md / lg を使い分け、CTA には緑の色付き影で
-// プレミアム感を加える。web は boxShadow、iOS は shadow*、Android は elevation。
+// 控えめな光と影のスケール。大げさな浮き上がりを避け、紙面のような落ち着きを保つ。
 import { Platform, type ViewStyle } from "react-native";
 
 function shadow(
@@ -8,7 +6,7 @@ function shadow(
   blur: number,
   opacity: number,
   elevation: number,
-  color = "#0B2E1A",
+  color = "#0B2014",
 ): ViewStyle {
   return Platform.select({
     ios: {
@@ -19,19 +17,19 @@ function shadow(
     },
     android: { elevation },
     default: {
-      boxShadow: `0px ${y}px ${blur}px rgba(11,46,26,${opacity})`,
+      boxShadow: `0px ${y}px ${blur}px rgba(11,32,20,${opacity})`,
     } as ViewStyle,
   }) as ViewStyle;
 }
 
-/** 控えめ: チップ・小さなカード */
-export const shadowSm = shadow(1, 4, 0.07, 2);
-/** 標準: 一覧カード・パネル */
-export const shadowMd = shadow(6, 16, 0.1, 5);
-/** 強め: ヒーロー・フローティング要素 */
-export const shadowLg = shadow(14, 30, 0.16, 12);
-/** 緑の色付き影: 主要CTAの浮き上がり（プレミアム感） */
-export const shadowPrimary = shadow(8, 18, 0.32, 8, "#1A472A");
+/** ごく控えめ: 通常のパネル */
+export const shadowSm = shadow(1, 3, 0.04, 1);
+/** 標準: 浮かせたいカード */
+export const shadowMd = shadow(4, 12, 0.07, 3);
+/** 強め: ログイン等の主パネル */
+export const shadowLg = shadow(10, 24, 0.11, 8);
+/** 主要CTAの控えめな接地影 */
+export const shadowPrimary = shadow(4, 12, 0.18, 4, "#184228");
 
-/** 後方互換: 既存の控えめなカード影 */
+/** 後方互換 */
 export const cardShadow = shadowSm;

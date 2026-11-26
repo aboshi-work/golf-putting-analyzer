@@ -5,6 +5,7 @@
 import { useMemo, useState } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 
+import { SERIF_FONT } from "@/constants/theme";
 import { GreenScene } from "@/components/green/green-scene";
 import { OUTCOME_COLOR, OUTCOME_LABEL, STAGE, type Outcome } from "@/components/green/green-types";
 import type { GreenPoint } from "@/lib/putting-stats";
@@ -37,9 +38,9 @@ export function GreenMapCard({ points, height, title = "グリーンマップ" }
     setVisible((v) => (v.includes(o) ? (v.length > 1 ? v.filter((x) => x !== o) : v) : [...v, o]));
 
   return (
-    <View style={{ backgroundColor: STAGE.bgTop, borderRadius: 24, overflow: "hidden" }}>
+    <View style={{ backgroundColor: STAGE.bgTop, borderRadius: 18, overflow: "hidden" }}>
       <View style={{ padding: 18, paddingBottom: 10 }}>
-        <Text accessibilityRole="header" style={{ color: STAGE.text, fontSize: 18, fontWeight: "800" }}>
+        <Text accessibilityRole="header" style={{ color: STAGE.text, fontFamily: SERIF_FONT, fontSize: 19, fontWeight: "700" }}>
           {title}
         </Text>
         <Text style={{ color: STAGE.textMuted, fontSize: 14, marginTop: 4, lineHeight: 20 }}>

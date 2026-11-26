@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
+import { SERIF_FONT } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
 import { setDemoMode } from "@/lib/demo-mode";
 import { useColors } from "@/hooks/use-colors";
@@ -57,9 +58,8 @@ export default function LoginScreen() {
         if (err) {
           setError(err.message);
         }
-        // On success, useAuth in _layout.tsx will redirect automatically
       }
-    } catch (e) {
+    } catch {
       setError("ネットワークエラーが発生しました");
     } finally {
       setLoading(false);
@@ -70,8 +70,6 @@ export default function LoginScreen() {
     setLoading(true);
     setError(null);
     try {
-      // Web: 同一オリジンの /oauth/callback。ネイティブ: app.config.ts の scheme から生成
-      // （例: puttinganalyzer://oauth/callback）。文字列を直書きするとスキーム変更時にずれる。
       const redirectTo =
         Platform.OS === "web" && typeof window !== "undefined"
           ? `${window.location.origin}/oauth/callback`
@@ -99,24 +97,26 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* ヒーロー: 3D グリーン */}
-          <View style={{ borderRadius: 26, overflow: "hidden", marginBottom: 20, maxWidth: 480, width: "100%", alignSelf: "center" }}>
-            <GreenScene mode="hero" height={230} radius={0} accessibilityLabel="グリーン上でボールがカップに入るアニメーション" />
-            <View pointerEvents="none" style={{ position: "absolute", left: 20, top: 18, right: 20 }}>
-              <Text style={{ fontSize: 28, fontWeight: "900", color: STAGE.text, letterSpacing: -0.4 }}>パッティング分析</Text>
-              <Text style={{ fontSize: 15, color: STAGE.textMuted, marginTop: 4, lineHeight: 21 }}>
+          <View style={{ borderRadius: 20, overflow: "hidden", marginBottom: 20, maxWidth: 460, width: "100%", alignSelf: "center" }}>
+            <GreenScene mode="hero" height={224} radius={0} accessibilityLabel="グリーン上でボールがカップに入るアニメーション" />
+            <View pointerEvents="none" style={{ position: "absolute", left: 22, top: 20, maxWidth: "72%" }}>
+              <Text style={{ fontFamily: SERIF_FONT, fontSize: 27, fontWeight: "700", color: STAGE.text, letterSpacing: 0.4 }}>
+                パッティング分析
+              </Text>
+              <Text style={{ fontSize: 14, color: STAGE.textMuted, marginTop: 6, lineHeight: 21 }}>
                 カードに書いて撮るだけ。{"\n"}どこで何打失っているかが分かる
               </Text>
             </View>
           </View>
 
-          {/* Card */}
+          {/* ログインカード */}
           <View
             style={[
               {
                 backgroundColor: colors.surface,
-                borderRadius: 24,
+                borderRadius: 18,
                 padding: 24,
-                maxWidth: 480,
+                maxWidth: 460,
                 width: "100%",
                 alignSelf: "center",
                 borderWidth: 1,
@@ -125,14 +125,16 @@ export default function LoginScreen() {
               shadowLg,
             ]}
           >
-            {/* Mode toggle */}
+            {/* モード切替 */}
             <View
               style={{
                 flexDirection: "row",
                 backgroundColor: colors.background,
-                borderRadius: 8,
-                padding: 4,
-                marginBottom: 24,
+                borderRadius: 10,
+                padding: 3,
+                marginBottom: 22,
+                borderWidth: 1,
+                borderColor: colors.border,
               }}
             >
               {(["signin", "signup"] as Mode[]).map((m) => (
@@ -141,15 +143,16 @@ export default function LoginScreen() {
                   onPress={() => { setMode(m); setMessage(null); }}
                   style={{
                     flex: 1,
-                    paddingVertical: 8,
-                    borderRadius: 6,
+                    paddingVertical: 9,
+                    borderRadius: 7,
                     alignItems: "center",
                     backgroundColor: mode === m ? colors.tint : "transparent",
                   }}
                 >
                   <Text
                     style={{
-                      fontWeight: "600",
+                      fontSize: 15,
+                      fontWeight: mode === m ? "700" : "600",
                       color: mode === m ? colors.onPrimary : colors.muted,
                     }}
                   >
@@ -159,8 +162,7 @@ export default function LoginScreen() {
               ))}
             </View>
 
-            {/* Email */}
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>
               メールアドレス
             </Text>
             <TextInput
@@ -184,8 +186,7 @@ export default function LoginScreen() {
               }}
             />
 
-            {/* Password */}
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>
               パスワード
             </Text>
             <TextInput
@@ -208,32 +209,31 @@ export default function LoginScreen() {
               }}
             />
 
-            {/* Error */}
             {error && <ErrorBanner message={error} style={{ marginBottom: 16 }} />}
 
-            {/* Success Message */}
             {message && (
               <View
                 style={{
-                  backgroundColor: "#d1fae5",
-                  borderRadius: 8,
+                  backgroundColor: `${colors.success}1F`,
+                  borderWidth: 1,
+                  borderColor: `${colors.success}55`,
+                  borderRadius: 10,
                   padding: 12,
                   marginBottom: 16,
                 }}
               >
-                <Text style={{ color: "#065f46", fontSize: 13 }}>{message}</Text>
+                <Text style={{ color: colors.foreground, fontSize: 14, lineHeight: 20 }}>{message}</Text>
               </View>
             )}
 
-            {/* Submit button */}
             <TouchableOpacity
               onPress={handleSubmit}
               disabled={loading}
               style={[
                 {
                   backgroundColor: colors.tint,
-                  borderRadius: 14,
-                  paddingVertical: 15,
+                  borderRadius: 12,
+                  paddingVertical: 14,
                   alignItems: "center",
                   marginBottom: 16,
                   opacity: loading ? 0.7 : 1,
@@ -244,13 +244,12 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator color={colors.onPrimary} />
               ) : (
-                <Text style={{ color: colors.onPrimary, fontWeight: "bold", fontSize: 16 }}>
+                <Text style={{ color: colors.onPrimary, fontWeight: "800", fontSize: 16 }}>
                   {mode === "signin" ? "ログイン" : "アカウント作成"}
                 </Text>
               )}
             </TouchableOpacity>
 
-            {/* Divider */}
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
               <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
               <Text style={{ marginHorizontal: 12, color: colors.muted, fontSize: 12 }}>
@@ -259,7 +258,6 @@ export default function LoginScreen() {
               <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
             </View>
 
-            {/* Google */}
             <TouchableOpacity
               onPress={handleGoogleLogin}
               disabled={loading}
@@ -267,7 +265,7 @@ export default function LoginScreen() {
                 borderWidth: 1,
                 borderColor: colors.border,
                 borderRadius: 12,
-                paddingVertical: 14,
+                paddingVertical: 13,
                 alignItems: "center",
                 flexDirection: "row",
                 justifyContent: "center",
@@ -290,22 +288,21 @@ export default function LoginScreen() {
               >
                 <Text style={{ fontSize: 14, fontWeight: "700", color: "#4285F4" }}>G</Text>
               </View>
-              <Text style={{ color: colors.text, fontWeight: "600", fontSize: 15 }}>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
                 Googleでログイン
               </Text>
             </TouchableOpacity>
 
-            {/* デモ */}
             <TouchableOpacity
               onPress={() => void setDemoMode(true)}
               disabled={loading}
               accessibilityRole="button"
-              style={{ paddingVertical: 14, alignItems: "center", marginTop: 8 }}
+              style={{ paddingVertical: 14, alignItems: "center", marginTop: 10 }}
             >
-              <Text style={{ color: colors.tint, fontWeight: "700", fontSize: 15 }}>
+              <Text style={{ color: colors.tint, fontWeight: "800", fontSize: 15 }}>
                 ログインせずにデモを見る
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+              <Text style={{ color: colors.muted, fontSize: 13, marginTop: 3 }}>
                 サンプルの22ラウンドで分析を体験できます
               </Text>
             </TouchableOpacity>

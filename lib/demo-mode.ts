@@ -111,10 +111,17 @@ export const DemoStore = {
   },
 
   getCourses: async (): Promise<GolfCourse[]> => clone(s().courses),
+  getCourse: async (id: string): Promise<GolfCourse | null> => clone(s().courses.find((c) => c.id === id) ?? null),
   saveCourse: async (c: Omit<GolfCourse, "id" | "createdAt">): Promise<GolfCourse> => {
     const course: GolfCourse = { ...c, id: nextId("demo-c"), createdAt: nowIso() };
     s().courses.push(course);
     return clone(course);
+  },
+  updateCourse: async (id: string, u: Partial<Omit<GolfCourse, "id" | "createdAt">>): Promise<GolfCourse | null> => {
+    const i = s().courses.findIndex((c) => c.id === id);
+    if (i < 0) return null;
+    s().courses[i] = { ...s().courses[i], ...u };
+    return clone(s().courses[i]);
   },
   deleteCourse: async (id: string): Promise<boolean> => {
     s().courses = s().courses.filter((c) => c.id !== id);

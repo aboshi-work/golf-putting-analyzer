@@ -6,6 +6,7 @@ import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-na
 import { useRouter } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { SERIF_FONT } from "@/constants/theme";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Chip } from "@/components/analysis/ui";
 import { useColors } from "@/hooks/use-colors";
@@ -27,7 +28,7 @@ export default function GuideScreen() {
         <Pressable onPress={() => router.back()} accessibilityLabel="戻る" style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
           <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
         </Pressable>
-        <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 18, fontWeight: "900" }}>分析の見方</Text>
+        <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 19, fontWeight: "700" }}>分析の見方</Text>
       </View>
       <ScrollView contentContainerStyle={{ alignItems: "center", paddingBottom: 40 }}>
         <View style={{ width: contentW, gap: 22, paddingTop: 8 }}>
@@ -140,7 +141,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   const colors = useColors();
   return (
     <View style={{ gap: 8 }}>
-      <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 19, fontWeight: "900" }}>{title}</Text>
+      <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 19, fontWeight: "700" }}>{title}</Text>
       {children}
     </View>
   );

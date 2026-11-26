@@ -13,6 +13,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { SERIF_FONT } from "@/constants/theme";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { GreenMapCard } from "@/components/analysis/green-map-card";
 import { DivergingBars, LineHeatmap, MakeCurveChart, SplitMeter, TrendChart, useDivergingColors } from "@/components/analysis/charts";
@@ -156,39 +157,65 @@ export default function AnalyticsScreen() {
           if (down !== showToc) setShowToc(down);
         }}
       >
-        <View style={{ width: contentW, gap: 16, paddingTop: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 28, fontWeight: "900", letterSpacing: -0.6 }}>
+        <View style={{ width: contentW, gap: 16, paddingTop: 14 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 28, fontWeight: "700", letterSpacing: 0.2 }}>
               分析
             </Text>
-            <Pressable
-              onPress={() => router.push("/guide" as never)}
-              accessibilityRole="link"
-              style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 6 }}
-            >
-              <IconSymbol name="info.circle" size={18} color={colors.primary} />
-              <Text style={{ color: colors.primary, fontSize: 15, fontWeight: "700" }}>分析の見方</Text>
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Pressable
+                onPress={() => router.push(`/report?period=${period}&baseline=${baseline}` as never)}
+                accessibilityRole="button"
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  minHeight: 36,
+                  paddingHorizontal: 10,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                }}
+              >
+                <IconSymbol name="doc.text" size={16} color={colors.primary} />
+                <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>診断レポート</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => router.push("/guide" as never)}
+                accessibilityRole="link"
+                style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: 36, paddingHorizontal: 4 }}
+              >
+                <IconSymbol name="info.circle" size={17} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "700" }}>見方</Text>
+              </Pressable>
+            </View>
           </View>
 
-          <Segmented options={PERIODS} value={period} onChange={setPeriod} />
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "700" }}>比べる相手</Text>
-            {(Object.keys(BASELINES) as BaselineId[]).map((b) => (
-              <Chip key={b} label={BASELINES[b].short} selected={baseline === b} onPress={() => setBaseline(b)} />
-            ))}
+          <View style={{ gap: 10 }}>
+            <Segmented options={PERIODS} value={period} onChange={setPeriod} />
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "700" }}>比べる相手</Text>
+              {(Object.keys(BASELINES) as BaselineId[]).map((b) => (
+                <Chip key={b} label={BASELINES[b].short} selected={baseline === b} onPress={() => setBaseline(b)} />
+              ))}
+            </View>
           </View>
 
           {data.sg.holes === 0 ? (
             <EmptyState onNew={() => router.push("/new-round" as never)} />
           ) : (
             <>
-              {/* 目次: 押すとそのセクションまでスクロール */}
-              <View {...anchor("toc")} style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-                <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "700", marginRight: 2 }}>目次</Text>
-                {SECTIONS.map((sct) => (
-                  <Chip key={sct.id} label={sct.label} selected={false} onPress={() => jump(sct.id)} />
-                ))}
+              {/* 目次: 1行の横スクロールにしてファーストビューで結論カードを見せる */}
+              <View {...anchor("toc")} style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, paddingVertical: 8 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>目次</Text>
+                  {SECTIONS.map((sct) => (
+                    <Pressable key={sct.id} onPress={() => jump(sct.id)} accessibilityRole="button" hitSlop={6} style={{ paddingVertical: 4 }}>
+                      <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "600" }}>{sct.label}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
               </View>
               <View {...anchor("summary")}>
                 <SgHero sg={data.sg} baselineLabel={base.label} rounds={data.scoped.length} />
@@ -470,21 +497,41 @@ function PrioritiesCard({ priorities, baselineLabel }: { priorities: ReturnType<
           目立って失っている分野はありません。この調子で記録を続けると、弱点がはっきりしてきます。
         </Text>
       ) : (
-        <View style={{ gap: 14 }}>
+        <View>
           {priorities.map((p, i) => (
-            <View key={p.id} style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: "900" }}>{i + 1}</Text>
-              </View>
+            <View
+              key={p.id}
+              style={{
+                flexDirection: "row",
+                gap: 14,
+                paddingTop: i === 0 ? 2 : 16,
+                marginTop: i === 0 ? 0 : 16,
+                borderTopWidth: i === 0 ? 0 : 1,
+                borderTopColor: colors.border,
+              }}
+            >
+              <Text
+                style={{
+                  width: 24,
+                  color: colors.accent,
+                  fontFamily: SERIF_FONT,
+                  fontSize: 24,
+                  fontWeight: "700",
+                  lineHeight: 28,
+                  fontVariant: ["tabular-nums"],
+                }}
+              >
+                {i + 1}
+              </Text>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-                  <Text style={{ color: colors.foreground, fontSize: 17, fontWeight: "800", flex: 1 }}>{p.title}</Text>
+                  <Text style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 17, fontWeight: "700", flex: 1 }}>{p.title}</Text>
                   <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "800", fontVariant: ["tabular-nums"] }}>
                     {`${p.strokesPer18.toFixed(1)}打/R`}
                   </Text>
                 </View>
-                <Text style={{ color: colors.muted, fontSize: 14, marginTop: 2 }}>{p.evidence}</Text>
-                <View style={{ marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.background }}>
+                <Text style={{ color: colors.muted, fontSize: 14, marginTop: 3 }}>{p.evidence}</Text>
+                <View style={{ marginTop: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.background, borderLeftWidth: 2, borderLeftColor: colors.primary }}>
                   <Text style={{ color: colors.foreground, fontSize: 15, lineHeight: 22 }}>{`練習：${p.drill}`}</Text>
                 </View>
               </View>

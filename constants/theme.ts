@@ -5,6 +5,7 @@
 export {
   Colors,
   Fonts,
+  SERIF_FONT,
   SchemeColors,
   ThemeColors,
   type ColorScheme,

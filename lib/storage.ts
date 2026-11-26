@@ -157,10 +157,21 @@ export async function getCourses(): Promise<GolfCourse[]> {
   return (await api()).getCourses();
 }
 
+export async function getCourse(id: string): Promise<GolfCourse | null> {
+  return (await api()).getCourse(id);
+}
+
 export async function saveCourse(
   course: Omit<GolfCourse, "id" | "createdAt">,
 ): Promise<GolfCourse> {
   return (await api()).saveCourse(course);
+}
+
+export async function updateCourse(
+  id: string,
+  updates: Partial<Omit<GolfCourse, "id" | "createdAt">>,
+): Promise<GolfCourse | null> {
+  return (await api()).updateCourse(id, updates);
 }
 
 export async function deleteCourse(id: string): Promise<boolean> {

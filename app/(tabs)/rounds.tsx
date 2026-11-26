@@ -1,32 +1,48 @@
-import { useCallback, useState } from "react";
-import { FlatList, RefreshControl, Text, View, TouchableOpacity } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 
+import { SERIF_FONT } from "@/constants/theme";
 import { ScreenContainer } from "@/components/screen-container";
+import { useDivergingColors } from "@/components/analysis/charts";
+import { Chip, formatStrokes } from "@/components/analysis/ui";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
-import { cardShadow } from "@/lib/card-shadow";
-import { getRounds, syncPendingHoleSaves } from "@/lib/storage";
-import { formatDate } from "@/lib/analytics";
-import { Round, LABELS, countPlayedHoles } from "@/lib/types";
+import { useBaseline } from "@/hooks/use-baseline";
+import { shadowSm } from "@/lib/card-shadow";
+import { BASELINES, holeObservations, roundSgSeries, sgSummary } from "@/lib/putting-stats";
+import { getRoundsWithHoles, getUserProfile, syncPendingHoleSaves } from "@/lib/storage";
+import { LABELS, type Round, countPlayedHoles } from "@/lib/types";
 
 export default function RoundsScreen() {
   const router = useRouter();
   const colors = useColors();
+  const pal = useDivergingColors();
+  const { width: rawScreenW } = useWindowDimensions();
+  const contentW = Math.min(rawScreenW > 0 ? rawScreenW : 390, 760) - 32;
+
   const [rounds, setRounds] = useState<Round[]>([]);
+  const [handicap, setHandicap] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [courseFilter, setCourseFilter] = useState<string>("all");
+  const [baseline] = useBaseline(handicap);
 
   const loadRounds = useCallback(async () => {
     await syncPendingHoleSaves().catch(() => undefined);
-    const data = await getRounds();
+    const [data, profile] = await Promise.all([
+      getRoundsWithHoles(),
+      getUserProfile().catch(() => null),
+    ]);
     setRounds(data);
+    setHandicap(profile?.handicap ?? null);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadRounds();
-    }, [loadRounds])
+      loadRounds().finally(() => setLoading(false));
+    }, [loadRounds]),
   );
 
   const onRefresh = useCallback(async () => {
@@ -35,95 +51,222 @@ export default function RoundsScreen() {
     setRefreshing(false);
   }, [loadRounds]);
 
-  const renderItem = ({ item }: { item: Round }) => {
-    const played = countPlayedHoles(item);
+  const courses = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rounds) {
+      if (r.courseName) counts.set(r.courseName, (counts.get(r.courseName) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+  }, [rounds]);
+
+  const hasCompetition = useMemo(
+    () => rounds.some((r) => r.roundType === "competition" || r.roundType === "club_competition"),
+    [rounds],
+  );
+
+  const filtered = useMemo(() => {
+    if (courseFilter === "all") return rounds;
+    if (courseFilter === "__comp__") {
+      return rounds.filter((r) => r.roundType === "competition" || r.roundType === "club_competition");
+    }
+    return rounds.filter((r) => r.courseName === courseFilter);
+  }, [rounds, courseFilter]);
+
+  const stats = useMemo(() => {
+    const holes = holeObservations(filtered, baseline);
+    const series = roundSgSeries(holes);
+    const bySg = new Map(series.map((s) => [s.roundId, s]));
+    const summary = sgSummary(holes);
+    return { bySg, summary };
+  }, [filtered, baseline]);
+
+  if (loading) {
     return (
-    <TouchableOpacity
-      className="bg-surface rounded-xl p-4 mb-3 border border-border"
-      style={cardShadow}
-      onPress={() => router.push(`/round/${item.id}` as any)}
-      activeOpacity={0.8}
-    >
-      <View className="flex-row items-start justify-between">
-        <View className="flex-1">
-          <Text className="text-foreground font-semibold text-lg">
-            {item.courseName}
-          </Text>
-          <Text className="text-muted text-sm mt-1">{formatDate(item.date)}</Text>
-          <View className="flex-row mt-2 gap-2 flex-wrap">
-            <Badge label={LABELS.grassType[item.grassType]} />
-            <Badge label={`${item.stimpmeter}ft`} />
-            <Badge label={LABELS.greenCondition[item.greenCondition]} />
-            <Badge label={LABELS.weather[item.weather]} />
+      <ScreenContainer className="items-center justify-center">
+        <ActivityIndicator size="large" color={colors.primary} />
+      </ScreenContainer>
+    );
+  }
+
+  return (
+    <ScreenContainer>
+      <ScrollView
+        contentContainerStyle={{ alignItems: "center", paddingBottom: 36 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
+      >
+        <View style={{ width: contentW, gap: 16, paddingTop: 14 }}>
+          {/* ヘッダー */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 28, fontWeight: "700", letterSpacing: 0.2 }}>
+              ラウンド履歴
+            </Text>
+            <Pressable
+              onPress={() => router.push("/new-round" as never)}
+              accessibilityRole="button"
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                minHeight: 40,
+                paddingHorizontal: 14,
+                borderRadius: 10,
+                backgroundColor: colors.primary,
+                opacity: pressed ? 0.85 : 1,
+              })}
+            >
+              <IconSymbol name="plus" size={18} color={colors.onPrimary} />
+              <Text style={{ color: colors.onPrimary, fontSize: 14, fontWeight: "800" }}>記録する</Text>
+            </Pressable>
           </View>
-        </View>
-        <View className="items-end ml-3">
-          <Text className="text-3xl font-bold text-primary">{item.totalPutts}</Text>
-          <Text className="text-xs text-muted">パット</Text>
-          <Text className="text-sm text-muted mt-1">
-            {played > 0 ? `${(item.totalPutts / played).toFixed(2)}/H` : "未入力"}
-          </Text>
-          {played > 0 && played < 18 && (
-            <Text className="text-xs text-muted">{played}H</Text>
+
+          {rounds.length === 0 ? (
+            <View style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 32, borderWidth: 1, borderColor: colors.border, alignItems: "center", marginTop: 12 }}>
+              <IconSymbol name="flag.fill" size={40} color={colors.muted} />
+              <Text style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 18, fontWeight: "700", marginTop: 12 }}>
+                ラウンドデータがありません
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 14, marginTop: 6, textAlign: "center", lineHeight: 21 }}>
+                右上の「記録する」から新しいラウンドを追加できます
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* 絞り込み */}
+              {(courses.length > 1 || hasCompetition) && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: "row", gap: 8 }}>
+                  <Chip label={`すべて（${rounds.length}）`} selected={courseFilter === "all"} onPress={() => setCourseFilter("all")} />
+                  {hasCompetition && (
+                    <Chip label="競技・月例" selected={courseFilter === "__comp__"} onPress={() => setCourseFilter("__comp__")} />
+                  )}
+                  {courses.map((c) => (
+                    <Chip key={c} label={c} selected={courseFilter === c} onPress={() => setCourseFilter(c)} />
+                  ))}
+                </ScrollView>
+              )}
+
+              {/* サマリー帯 */}
+              {stats.summary.holes > 0 && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "baseline",
+                    justifyContent: "space-between",
+                    paddingVertical: 10,
+                    paddingHorizontal: 14,
+                    borderRadius: 12,
+                    backgroundColor: colors.surface,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    flexWrap: "wrap",
+                    gap: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
+                    {`${filtered.length}ラウンド集計（${BASELINES[baseline].short}比）`}
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "baseline", gap: 14 }}>
+                    <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] }}>
+                      {`平均 ${stats.summary.actualPer18.toFixed(1)} パット/R`}
+                    </Text>
+                    <Text
+                      style={{
+                        color: stats.summary.sgPer18 >= 0 ? pal.gain : pal.loss,
+                        fontSize: 15,
+                        fontWeight: "800",
+                        fontVariant: ["tabular-nums"],
+                      }}
+                    >
+                      {`${formatStrokes(stats.summary.sgPer18)} 打/R`}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* スコアブック風の一覧 */}
+              <View style={[{ backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }, shadowSm]}>
+                {filtered.map((item, idx) => {
+                  const s = stats.bySg.get(item.id);
+                  const played = countPlayedHoles(item);
+                  const d = new Date(`${item.date.split("T")[0]}T00:00:00`);
+                  const meta = [
+                    LABELS.grassType[item.grassType],
+                    item.stimpmeter ? `${item.stimpmeter}ft` : null,
+                    LABELS.weather[item.weather],
+                    item.putterName || null,
+                  ]
+                    .filter(Boolean)
+                    .join("・");
+
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => router.push(`/round/${item.id}` as never)}
+                      accessibilityRole="button"
+                      style={({ pressed }) => ({
+                        paddingVertical: 14,
+                        paddingHorizontal: 14,
+                        borderTopWidth: idx === 0 ? 0 : 1,
+                        borderTopColor: colors.border,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                        backgroundColor: pressed ? colors.background : "transparent",
+                      })}
+                    >
+                      <View
+                        style={{
+                          width: 42,
+                          paddingRight: 10,
+                          borderRightWidth: 1,
+                          borderRightColor: colors.border,
+                          alignItems: "center",
+                        }}
+                      >
+                        <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700", fontVariant: ["tabular-nums"] }}>
+                          {`${d.getMonth() + 1}月`}
+                        </Text>
+                        <Text style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 19, fontWeight: "700", fontVariant: ["tabular-nums"] }}>
+                          {d.getDate()}
+                        </Text>
+                      </View>
+
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 16, fontWeight: "700", lineHeight: 22 }}>
+                          {item.courseName}
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 13, marginTop: 3, lineHeight: 18 }}>
+                          {s ? `${s.putts}パット（${s.holes}H）・3パット${s.threePutts}回` : played > 0 ? `${item.totalPutts}パット（${played}H）` : "未入力"}
+                        </Text>
+                        {meta ? (
+                          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2, lineHeight: 17 }}>
+                            {meta}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <View style={{ alignItems: "flex-end", minWidth: 52 }}>
+                        {s ? (
+                          <>
+                            <Text style={{ color: s.sgPer18 >= 0 ? pal.gain : pal.loss, fontSize: 19, fontWeight: "800", fontVariant: ["tabular-nums"] }}>
+                              {formatStrokes(s.sgPer18)}
+                            </Text>
+                            <Text style={{ color: colors.muted, fontSize: 11 }}>打/R</Text>
+                          </>
+                        ) : (
+                          <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "600" }}>
+                            {played > 0 ? `${item.totalPutts}打` : "未入力"}
+                          </Text>
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
           )}
         </View>
-      </View>
-      <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-border">
-        <Text className="text-muted text-sm">
-          {item.putterName}
-        </Text>
-        {/* 削除は誤操作を避けるためラウンドの詳細画面だけに置く */}
-        <IconSymbol name="chevron.right" size={20} color={colors.muted} />
-      </View>
-    </TouchableOpacity>
-    );
-  };
-
-  return (
-    <ScreenContainer className="p-4">
-      <View className="flex-row items-center justify-between mb-4">
-        <Text className="text-2xl font-bold text-foreground">ラウンド履歴</Text>
-        <TouchableOpacity
-          className="bg-primary rounded-full p-2"
-          onPress={() => router.push("/new-round" as any)}
-          activeOpacity={0.8}
-        >
-          <IconSymbol name="plus" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-
-      {rounds.length > 0 ? (
-        <FlatList
-          data={rounds}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
-              colors={[colors.primary]}
-            />
-          }
-        />
-      ) : (
-        <View className="flex-1 items-center justify-center">
-          <IconSymbol name="flag.fill" size={64} color={colors.muted} />
-          <Text className="text-muted text-lg mt-4">ラウンドデータがありません</Text>
-          <Text className="text-muted text-sm mt-2 text-center">
-            「+」ボタンから新しいラウンドを記録しましょう
-          </Text>
-        </View>
-      )}
+      </ScrollView>
     </ScreenContainer>
-  );
-}
-
-function Badge({ label }: { label: string }) {
-  return (
-    <View className="px-2 py-1 rounded-full bg-border">
-      <Text className="text-xs text-muted">{label}</Text>
-    </View>
   );
 }

@@ -209,7 +209,7 @@ async function createScene(
   rim.rotation.x = -Math.PI / 2;
   rim.position.set(0, heightAt(0, 0) + 0.014, 0);
   scene.add(rim);
-  const pinHeight = mode === "hero" ? 2.2 : 1.6;
+  const pinHeight = mode === "hero" ? 1.8 : 1.6;
   const pin = new THREE.Mesh(
     new THREE.CylinderGeometry(0.02, 0.02, pinHeight, 8),
     new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.4, transparent: mode === "map", opacity: mode === "map" ? 0.7 : 1 }),
@@ -346,10 +346,10 @@ async function createScene(
   }
 
   // ─── カメラ ───
-  let azimuth = mode === "hero" ? -0.25 : 0.0;
-  let elevation = mode === "hero" ? 0.36 : 0.72;
-  const distance = mode === "hero" ? 9.5 : 30;
-  const target = mode === "hero" ? new THREE.Vector3(-1.7, 0.2, -0.4) : new THREE.Vector3(0, 0, 1.5);
+  let azimuth = mode === "hero" ? -0.22 : 0.0;
+  let elevation = mode === "hero" ? 0.38 : 0.72;
+  const distance = mode === "hero" ? 10.2 : 30;
+  const target = mode === "hero" ? new THREE.Vector3(-2.0, 0.32, -0.55) : new THREE.Vector3(0, 0, 1.5);
   function placeCamera() {
     camera.position.set(
       target.x + distance * Math.cos(elevation) * Math.sin(azimuth),

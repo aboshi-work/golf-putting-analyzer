@@ -13,6 +13,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { SERIF_FONT } from "@/constants/theme";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
@@ -259,7 +260,7 @@ export default function ScanCardScreen() {
         <Pressable onPress={() => router.back()} accessibilityLabel="戻る" style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
           <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
         </Pressable>
-        <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 18, fontWeight: "900" }}>カードを読み取る</Text>
+        <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 19, fontWeight: "700" }}>カードを読み取る</Text>
       </View>
       <ScrollView contentContainerStyle={{ alignItems: "center", paddingBottom: 24 }}>
         <View style={{ width: contentW, gap: 14, paddingTop: 8 }}>
