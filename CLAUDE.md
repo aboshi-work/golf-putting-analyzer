@@ -3,7 +3,7 @@
 ## 現在の状態
 
 - 作業ブランチ: `fable5/v3-card-analytics-3d`（`fable5/gemini3-ui-refresh` から分岐。2026-09-25 の v3 改修）
-- GitHub: `aboshi-work/putting-analyzer-v2`（2026-11 に `aboshiDaisuke/` から移動。古い URL は GitHub が転送する）
+- GitHub: `aboshi-work/golf-putting-analyzer`（2026-11 に `aboshiDaisuke/putting-analyzer-v2` から移動・改名。古い URL は GitHub が転送する）
 - ドラフトPR: https://github.com/aboshiDaisuke/putting-analyzer-v2/pull/1
 - Supabase project ref: `ijrrzinlhqhinlmzunzn` (`putting-analyzer`)
 - 本番: https://putting-analyzer-v2.vercel.app/
@@ -47,14 +47,13 @@
 
 ## 2026-11-26 の状態（最優先）
 
-- **本番は止まっている**: /api/health が DB に届かない（tenant not found）。停止防止が main に無いので Supabase が停止したとみられる。
-  停止から1年以内はダッシュボードの Restore で戻せる（データは残る）
-- **Vercel と GitHub の連携が切れている可能性**: リポジトリ移動後のプッシュ（61b3007）で Vercel のプレビューが作られていない。
-  Vercel の Settings → Git でリポジトリをつなぎ直す
+- Supabase は停止していた（停止防止が main に無いため）→ 2026-11-26 に Resume 済み。/api/health は connected
+- Vercel の Git 連携はリポジトリ移動で切れていた → 2026-11-26 に `aboshi-work/golf-putting-analyzer` へつなぎ直し済み
+  （GitHub の Vercel アプリは aboshi-work にこのリポジトリだけ許可）。Vercel のプロジェクト名と本番 URL は putting-analyzer-v2 のまま
 - **読み取りモデルを変更（61b3007）**: 既定を `gemini-3.1-flash-lite`＋確認用 `gemini-3.5-flash-lite` に。`gemini-3.5-flash` は廃止で 503 が続き、
   1枚 90〜220 秒かかっていた。評価 275/275・悪条件 456/458（誤読は全て要確認に表示）、1枚 7〜9 秒、1回 入力約1.3万/出力約1,100 トークン。
-  Vercel の環境変数に GEMINI_MODEL / OCR_VERIFY_MODEL が入っていたら、こちらに合わせるか消す
-- 次: ① Supabase Restore → ② Vercel の連携を直してプレビュー確認 → ③ main に再マージ（revert の revert）→ ④ 本番で通し確認・cron と keep-alive の動作確認
+  Vercel の環境変数に GEMINI_MODEL / OCR_VERIFY_MODEL は無い（2026-11-26 確認）＝コードの既定が使われる
+- 次: ①② 済み → プレビュー確認 → ③ main に再マージ（revert の revert）→ ④ 本番で通し確認・cron と keep-alive の動作確認
 
 ## 2026-09-25 夕方の中断時点
 
