@@ -10,7 +10,7 @@ import { validateRow } from "./scorecard/ocr";
 
 const OUT: CardFill = {
   date: "1123",
-  course: "富士見ヶ丘CC",
+  course: "多治見CC",
   markStyle: "check",
   rows: [
     { puttFor: 1, p1: { dist: "8", ud: 1, lr: 2, miss: 0 }, p2: { dist: "1.2", ud: 0, lr: 0 }, total: "2" },
