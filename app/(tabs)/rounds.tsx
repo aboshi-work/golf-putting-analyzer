@@ -91,33 +91,21 @@ export default function RoundsScreen() {
   return (
     <ScreenContainer>
       <ScrollView
-        contentContainerStyle={{ alignItems: "center", paddingBottom: 36 }}
+        contentContainerStyle={{ alignItems: "center", paddingBottom: 112 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
       >
-        <View style={{ width: contentW, gap: 16, paddingTop: 14 }}>
+        <View style={{ width: contentW, gap: 16, paddingTop: 12 }}>
           {/* ヘッダー */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 28, fontWeight: "700", letterSpacing: 0.2 }}>
+          <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
+            <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 28, fontWeight: "900", letterSpacing: -0.5 }}>
               ラウンド履歴
             </Text>
-            <Pressable
-              onPress={() => router.push("/new-round" as never)}
-              accessibilityRole="button"
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                minHeight: 40,
-                paddingHorizontal: 14,
-                borderRadius: 10,
-                backgroundColor: colors.primary,
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <IconSymbol name="plus" size={18} color={colors.onPrimary} />
-              <Text style={{ color: colors.onPrimary, fontSize: 14, fontWeight: "800" }}>記録する</Text>
-            </Pressable>
+            {rounds.length > 0 && (
+              <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] }}>
+                {`${filtered.length}ラウンド`}
+              </Text>
+            )}
           </View>
 
           {rounds.length === 0 ? (

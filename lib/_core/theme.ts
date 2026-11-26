@@ -84,5 +84,5 @@ export const Fonts = Platform.select({
   },
 });
 
-/** クラシッククラブ調の見出し書体（明朝） */
-export const SERIF_FONT = Fonts?.serif ?? "serif";
+/** アプリ見出し用書体（モダンなネイティブアプリ調のサンセリフ） */
+export const SERIF_FONT = Fonts?.sans ?? "system-ui";

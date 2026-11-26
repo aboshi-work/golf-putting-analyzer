@@ -1,18 +1,17 @@
-// ホーム画面の表示専用コンポーネント（データ取得は app/(tabs)/index.tsx）。
-//  - 3D グリーンのヒーロー（ボールが曲がって入る）に「最近の調子」を重ねる
-//  - 主役の CTA は「ラウンドを記録」。カード撮影・印刷にもすぐ行ける
-//  - 今いちばん伸びしろのある練習テーマと、最近のラウンド（1ラウンドの損得つき）
+// ホーム画面（ネイティブアプリ調ダッシュボード）。
+//  - 3D グリーンのヒーローに「直近5Rの調子」を重ねる
+//  - クイック操作（撮影・印刷）をコンパクトに置き、中央＋タブからいつでも記録開始できる
+//  - いちばんの伸びしろと最近のラウンドを枠線レスカードで見せる
 import { useMemo } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
 
-import { SERIF_FONT } from "@/constants/theme";
 import { GreenScene } from "@/components/green/green-scene";
 import { STAGE } from "@/components/green/green-types";
 import { useDivergingColors } from "@/components/analysis/charts";
-import { formatStrokes } from "@/components/analysis/ui";
+import { Card, formatStrokes } from "@/components/analysis/ui";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
-import { shadowPrimary, shadowSm } from "@/lib/card-shadow";
+import { shadowSm } from "@/lib/card-shadow";
 import {
   BASELINES,
   holeObservations,
@@ -48,7 +47,6 @@ export function HomeDashboard({
   pendingSaves = 0,
   refreshing,
   onRefresh,
-  onNewRound,
   onScan,
   onPrintCard,
   onOpenAnalytics,
@@ -57,7 +55,8 @@ export function HomeDashboard({
 }: Props) {
   const colors = useColors();
   const pal = useDivergingColors();
-  const { width: screenW } = useWindowDimensions();
+  const { width: rawW } = useWindowDimensions();
+  const screenW = rawW > 0 ? rawW : 390;
   const contentW = Math.min(screenW, 760) - 32;
 
   const played = useMemo(
@@ -81,16 +80,16 @@ export function HomeDashboard({
   const hour = new Date().getHours();
   const greeting = hour < 11 ? "おはようございます" : hour < 18 ? "こんにちは" : "こんばんは";
   const name = profile?.name ? `${profile.name}さん` : "ようこそ";
-  const heroH = Math.min(320, Math.max(256, contentW * 0.68));
+  const heroH = Math.min(310, Math.max(252, contentW * 0.66));
   const hasData = stats.recent.holes > 0;
 
   return (
     <ScrollView
-      contentContainerStyle={{ paddingBottom: 36, alignItems: "center" }}
+      contentContainerStyle={{ paddingBottom: 112, alignItems: "center" }}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
     >
-      <View style={{ width: contentW, gap: 18, paddingTop: 14 }}>
+      <View style={{ width: contentW, gap: 16, paddingTop: 10 }}>
         {pendingSaves > 0 && (
           <View
             style={{
@@ -98,9 +97,7 @@ export function HomeDashboard({
               alignItems: "center",
               gap: 10,
               backgroundColor: `${colors.warning}1A`,
-              borderColor: `${colors.warning}55`,
-              borderWidth: 1,
-              borderRadius: 12,
+              borderRadius: 16,
               padding: 12,
             }}
           >
@@ -112,18 +109,17 @@ export function HomeDashboard({
         )}
 
         {/* ─── ヒーロー: 3D グリーン ─── */}
-        <View style={{ borderRadius: 20, overflow: "hidden", backgroundColor: STAGE.bgBottom }}>
+        <View style={{ borderRadius: 26, overflow: "hidden", backgroundColor: STAGE.bgBottom }}>
           <GreenScene mode="hero" height={heroH} radius={0} accessibilityLabel="グリーン上でボールが曲がりながらカップに入るアニメーション" />
           <View pointerEvents="none" style={{ position: "absolute", left: 22, top: 20, maxWidth: "70%" }}>
-            <Text style={{ color: STAGE.textMuted, fontSize: 13, fontWeight: "600", letterSpacing: 0.4 }}>{greeting}</Text>
+            <Text style={{ color: STAGE.textMuted, fontSize: 13, fontWeight: "700" }}>{greeting}</Text>
             <Text
               style={{
                 color: STAGE.text,
-                fontFamily: SERIF_FONT,
                 fontSize: 26,
-                fontWeight: "700",
-                marginTop: 4,
-                letterSpacing: 0.3,
+                fontWeight: "900",
+                marginTop: 2,
+                letterSpacing: -0.5,
               }}
               numberOfLines={1}
             >
@@ -139,7 +135,7 @@ export function HomeDashboard({
               bottom: 14,
               paddingVertical: 12,
               paddingHorizontal: 16,
-              borderRadius: 14,
+              borderRadius: 18,
               backgroundColor: "rgba(7,19,12,0.78)",
               borderWidth: 1,
               borderColor: "rgba(243,239,228,0.12)",
@@ -164,95 +160,59 @@ export function HomeDashboard({
           </View>
         </View>
 
-        {/* ─── 主アクション ─── */}
-        <View style={{ gap: 10 }}>
-          <Pressable
-            onPress={onNewRound}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              {
-                backgroundColor: colors.primary,
-                borderRadius: 14,
-                paddingVertical: 16,
-                paddingHorizontal: 18,
-                flexDirection: "row",
-                alignItems: "center",
-                opacity: pressed ? 0.9 : 1,
-              },
-              shadowPrimary,
-            ]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.onPrimary, fontFamily: SERIF_FONT, fontWeight: "700", fontSize: 19, letterSpacing: 0.3 }}>
-                ラウンドを記録
-              </Text>
-              <Text style={{ color: colors.onPrimary, opacity: 0.85, fontSize: 13, marginTop: 3 }}>
-                カードの撮影・手入力・ラウンド情報
-              </Text>
-            </View>
-            <IconSymbol name="arrow.right" size={20} color={colors.onPrimary} />
-          </Pressable>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <SubAction icon="camera.fill" title="カードを撮影" note="OUT と IN の2枚" onPress={onScan} />
-            <SubAction icon="printer.fill" title="カードを印刷" note="A4 2枚・二つ折り" onPress={onPrintCard} />
-          </View>
+        {/* ─── クイックアクション（中央＋ボタンからも全機能を開ける） ─── */}
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <QuickAction icon="camera.fill" title="カードを撮影" note="OUT / IN 2枚" onPress={onScan} />
+          <QuickAction icon="printer.fill" title="カードを印刷" note="A4 二つ折り" onPress={onPrintCard} />
         </View>
 
         {/* ─── 今の練習テーマ ─── */}
         {stats.top && (
-          <Pressable onPress={onOpenAnalytics} accessibilityRole="button">
-            <View
-              style={[
-                {
-                  backgroundColor: colors.surface,
-                  borderRadius: 16,
-                  padding: 20,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderLeftWidth: 3,
-                  borderLeftColor: colors.accent,
-                },
-                shadowSm,
-              ]}
-            >
-              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "700", letterSpacing: 0.4 }}>
-                いちばんの伸びしろ
-              </Text>
-              <Text style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 21, fontWeight: "700", marginTop: 6 }}>
+          <Pressable
+            onPress={onOpenAnalytics}
+            accessibilityRole="button"
+            style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.985 : 1 }] })}
+          >
+            <Card>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
+                <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "800" }}>いちばんの伸びしろ</Text>
+              </View>
+              <Text style={{ color: colors.foreground, fontSize: 21, fontWeight: "900", letterSpacing: -0.4, marginTop: 8 }}>
                 {stats.top.title}
               </Text>
-              <Text style={{ color: colors.foreground, fontSize: 16, marginTop: 6, lineHeight: 24 }}>
+              <Text style={{ color: colors.foreground, fontSize: 15, marginTop: 6, lineHeight: 23 }}>
                 {`1ラウンドあたり約${stats.top.strokesPer18.toFixed(1)}打。${stats.top.evidence}`}
               </Text>
               <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "800", marginTop: 12 }}>
                 練習メニューと詳しい分析 →
               </Text>
-            </View>
+            </Card>
           </Pressable>
         )}
 
         {/* ─── 最近のラウンド ─── */}
         <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 4 }}>
-            <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 20, fontWeight: "700" }}>
+          <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingHorizontal: 4 }}>
+            <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 19, fontWeight: "900", letterSpacing: -0.3 }}>
               最近のラウンド
             </Text>
             {played.length > 3 && (
               <Pressable onPress={onOpenRounds} hitSlop={8} style={{ minHeight: 36, justifyContent: "center" }}>
-                <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "700" }}>すべて見る →</Text>
+                <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "800" }}>すべて見る →</Text>
               </Pressable>
             )}
           </View>
 
           {rounds.length === 0 ? (
-            <View style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}>
-              <Text style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontWeight: "700", fontSize: 17 }}>まだラウンドがありません</Text>
+            <Card style={{ alignItems: "center", paddingVertical: 28 }}>
+              <Text style={{ color: colors.foreground, fontWeight: "800", fontSize: 17 }}>まだラウンドがありません</Text>
               <Text style={{ color: colors.muted, fontSize: 14, marginTop: 6, textAlign: "center", lineHeight: 21 }}>
-                カードを印刷して次のラウンドに持って行きましょう
+                下の「＋」ボタンからカードを印刷・撮影して始めましょう
               </Text>
-            </View>
+            </Card>
           ) : (
-            <View style={[{ backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }, shadowSm]}>
+            <Card padded={false}>
               {rounds.slice(0, 3).map((r, idx) => {
                 const s = stats.bySg.get(r.id);
                 return (
@@ -261,8 +221,8 @@ export function HomeDashboard({
                     onPress={() => onOpenRound(r.id)}
                     accessibilityRole="button"
                     style={({ pressed }) => ({
-                      paddingVertical: 14,
-                      paddingHorizontal: 16,
+                      paddingVertical: 15,
+                      paddingHorizontal: 18,
                       borderTopWidth: idx === 0 ? 0 : 1,
                       borderTopColor: colors.border,
                       flexDirection: "row",
@@ -273,7 +233,7 @@ export function HomeDashboard({
                   >
                     <DateColumn date={r.date} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 16, fontWeight: "700", lineHeight: 22 }}>
+                      <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "800", lineHeight: 22 }}>
                         {r.courseName}
                       </Text>
                       <Text style={{ color: colors.muted, fontSize: 13, marginTop: 3, lineHeight: 18 }}>
@@ -282,16 +242,16 @@ export function HomeDashboard({
                     </View>
                     {s && (
                       <View style={{ alignItems: "flex-end" }}>
-                        <Text style={{ color: s.sgPer18 >= 0 ? pal.gain : pal.loss, fontSize: 19, fontWeight: "800", fontVariant: ["tabular-nums"] }}>
+                        <Text style={{ color: s.sgPer18 >= 0 ? pal.gain : pal.loss, fontSize: 20, fontWeight: "900", fontVariant: ["tabular-nums"] }}>
                           {formatStrokes(s.sgPer18)}
                         </Text>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>打/R</Text>
+                        <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>打/R</Text>
                       </View>
                     )}
                   </Pressable>
                 );
               })}
-            </View>
+            </Card>
           )}
         </View>
       </View>
@@ -306,14 +266,14 @@ function HeroStat({ label, value, unit, flex = 1 }: { label: string; value: stri
         {label}
       </Text>
       <View style={{ flexDirection: "row", alignItems: "baseline", marginTop: 3 }}>
-        <Text style={{ color: STAGE.text, fontSize: 24, fontWeight: "800", fontVariant: ["tabular-nums"] }}>{value}</Text>
+        <Text style={{ color: STAGE.text, fontSize: 24, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{value}</Text>
         {unit ? <Text style={{ color: STAGE.textMuted, fontSize: 12, fontWeight: "600", marginLeft: 3 }}>{unit}</Text> : null}
       </View>
     </View>
   );
 }
 
-function SubAction({ icon, title, note, onPress }: { icon: "camera.fill" | "printer.fill"; title: string; note: string; onPress: () => void }) {
+function QuickAction({ icon, title, note, onPress }: { icon: "camera.fill" | "printer.fill"; title: string; note: string; onPress: () => void }) {
   const colors = useColors();
   return (
     <Pressable
@@ -323,23 +283,23 @@ function SubAction({ icon, title, note, onPress }: { icon: "camera.fill" | "prin
         {
           flex: 1,
           backgroundColor: colors.surface,
-          borderRadius: 14,
+          borderRadius: 20,
           paddingVertical: 14,
-          paddingHorizontal: 16,
-          borderWidth: 1,
-          borderColor: colors.border,
+          paddingHorizontal: 14,
           flexDirection: "row",
           alignItems: "center",
           gap: 12,
-          opacity: pressed ? 0.85 : 1,
+          transform: [{ scale: pressed ? 0.97 : 1 }],
         },
         shadowSm,
       ]}
     >
-      <IconSymbol name={icon} size={20} color={colors.primary} />
+      <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: `${colors.primary}16`, alignItems: "center", justifyContent: "center" }}>
+        <IconSymbol name={icon} size={20} color={colors.primary} />
+      </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "800" }}>{title}</Text>
-        <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>{note}</Text>
+        <Text style={{ color: colors.muted, fontSize: 12, marginTop: 1 }}>{note}</Text>
       </View>
     </Pressable>
   );
@@ -352,14 +312,15 @@ function DateColumn({ date }: { date: string }) {
     <View
       style={{
         width: 46,
-        paddingRight: 12,
-        borderRightWidth: 1,
-        borderRightColor: colors.border,
+        height: 46,
+        borderRadius: 14,
+        backgroundColor: colors.background,
         alignItems: "center",
+        justifyContent: "center",
       }}
     >
       <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700", fontVariant: ["tabular-nums"] }}>{`${d.getMonth() + 1}月`}</Text>
-      <Text style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 20, fontWeight: "700", fontVariant: ["tabular-nums"] }}>
+      <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: "900", marginTop: -2, fontVariant: ["tabular-nums"] }}>
         {d.getDate()}
       </Text>
     </View>
