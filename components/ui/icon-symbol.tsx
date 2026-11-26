@@ -47,6 +47,7 @@ const MAPPING = {
   "checkmark": "check",
   "exclamationmark.triangle.fill": "warning",
   "chevron.down": "expand-more",
+  "chevron.up": "expand-less",
   "arrow.clockwise": "refresh",
   "minus": "remove",
   "keyboard": "keyboard",
