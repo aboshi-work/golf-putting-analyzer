@@ -18,7 +18,7 @@ import { hapticSuccess } from "@/lib/haptics";
 import { clearOcrSession, getOcrSession, type SideResult } from "@/lib/ocr-session";
 import { CARD_H, CARD_W, holeNumberFor, LR_OPTIONS, MISS_OPTIONS, PUTT_FOR_OPTIONS, UD_OPTIONS, type CardSide } from "@/lib/scorecard/layout";
 import { cardDateToYmd, rowHasData, rowToHole, validateRow, type OcrRow } from "@/lib/scorecard/ocr";
-import { getPutters, saveHolesForRound, saveRound } from "@/lib/storage";
+import { getPutters, getRounds, saveHolesForRound, saveRound } from "@/lib/storage";
 import type { HoleData, Round } from "@/lib/types";
 
 const CARD_ASPECT = CARD_W / CARD_H;
@@ -147,7 +147,9 @@ export default function OcrReviewScreen() {
         await saveHolesForRound(roundId, holes);
       } else {
         const putters = await getPutters().catch(() => []);
-        const ace = putters.find((p) => p.ranking === "ace") ?? putters[0];
+        // 天気・グリーン・パターは保存のあとで入れてもらう。それまでは前回のラウンドの値を仮に使う
+        const last = (await getRounds().catch(() => []))[0];
+        const ace = putters.find((p) => p.id === last?.putterId) ?? putters.find((p) => p.ranking === "ace") ?? putters[0];
         const newRound: Omit<Round, "id" | "createdAt" | "updatedAt"> = {
           date,
           weather: "sunny",
@@ -156,10 +158,10 @@ export default function OcrReviewScreen() {
           courseName: course.trim() || "未設定",
           frontNineGreen: "",
           backNineGreen: "",
-          roundType: "private",
-          competitionFormat: "stroke",
-          grassType: "bent",
-          stimpmeter: 9,
+          roundType: last?.roundType ?? "private",
+          competitionFormat: last?.competitionFormat ?? "stroke",
+          grassType: last?.grassType ?? "bent",
+          stimpmeter: last?.stimpmeter ?? 9,
           greenCondition: "good",
           putterId: ace?.id ?? "",
           putterName: ace ? `${ace.brandName} ${ace.productName}` : "",
@@ -171,7 +173,8 @@ export default function OcrReviewScreen() {
       }
       clearOcrSession();
       hapticSuccess();
-      router.replace(`/round/${roundId}` as never);
+      // 新しく作ったラウンドは、続けて天気・グリーン・パターを入れてもらう（「あとで」で飛ばせる）
+      router.replace((session?.roundId ? `/round/${roundId}` : `/new-round?edit=${roundId}&after=scan`) as never);
     } catch (e) {
       setError(`保存に失敗しました（${e instanceof Error ? e.message : String(e)}）`);
     } finally {
@@ -214,7 +217,7 @@ export default function OcrReviewScreen() {
               <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900" }}>新しいラウンドとして保存</Text>
               <LabeledInput label="日付" value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
               <LabeledInput label="コース" value={course} onChange={setCourse} placeholder="コース名" />
-              <Text style={{ color: colors.muted, fontSize: 13 }}>グリーンの速さや天気は保存後にラウンド画面から追加できます。</Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>天気・グリーンの速さ・パターは、保存のあとに続けて入れられます（飛ばしても可）。</Text>
             </View>
           )}
 
