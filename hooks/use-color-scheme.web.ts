@@ -1,21 +1,20 @@
 import { useEffect, useState } from "react";
 import { useColorScheme as useRNColorScheme } from "react-native";
+import { useOptionalThemeContext } from "@/lib/theme-provider";
 
 /**
- * To support static rendering, this value needs to be re-calculated on the client side for web
+ * Web でも ThemeProvider の状態（自動/ライト/ダーク）を単一の正として返す。
+ * SSR と初回ハイドレーションの一致も ThemeProvider 側で制御済み。
  */
 export function useColorScheme() {
+  const ctx = useOptionalThemeContext();
   const [hasHydrated, setHasHydrated] = useState(false);
+  const rnScheme = useRNColorScheme();
 
   useEffect(() => {
     setHasHydrated(true);
   }, []);
 
-  const colorScheme = useRNColorScheme();
-
-  if (hasHydrated) {
-    return colorScheme;
-  }
-
-  return "light";
+  if (ctx) return ctx.colorScheme;
+  return hasHydrated ? rnScheme : "light";
 }

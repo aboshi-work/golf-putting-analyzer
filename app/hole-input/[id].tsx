@@ -10,6 +10,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput,
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { SERIF_FONT } from "@/constants/theme";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useDivergingColors } from "@/components/analysis/charts";
@@ -269,7 +270,7 @@ export default function HoleInputScreen() {
             )}
 
             <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
-              <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 30, fontWeight: "900" }}>{`${current}番`}</Text>
+              <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 30, fontWeight: "700" }}>{`${current}番`}</Text>
               {preview != null && (
                 <Text style={{ color: preview >= 0 ? pal.gain : pal.loss, fontSize: 16, fontWeight: "800" }}>
                   {`このホール ${formatStrokes(preview, 2)}打（${BASELINES[baseline].short}比）`}

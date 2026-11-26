@@ -1,10 +1,11 @@
 /**
- * 分析まわりの小さな UI 部品（カード・見出し・チップ・セグメント・数値タイル）。
+ * 分析・共通まわりの小さな UI 部品（カード・明朝見出し・控えめな選択ピル・セグメント・数値タイル）。
  * 本文は 16px、補足は 13〜14px。色はテーマのトークンだけを使う（ダークモード対応）。
  */
 import type { ReactNode } from "react";
 import { Pressable, Text, View, type ViewStyle } from "react-native";
 
+import { SERIF_FONT } from "@/constants/theme";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { shadowSm } from "@/lib/card-shadow";
@@ -16,10 +17,10 @@ export function Card({ children, style, padded = true }: { children: ReactNode; 
       style={[
         {
           backgroundColor: colors.surface,
-          borderRadius: 22,
+          borderRadius: 16,
           borderWidth: 1,
           borderColor: colors.border,
-          padding: padded ? 18 : 0,
+          padding: padded ? 20 : 0,
           overflow: "hidden",
         },
         shadowSm,
@@ -34,13 +35,22 @@ export function Card({ children, style, padded = true }: { children: ReactNode; 
 export function SectionTitle({ title, subtitle, right }: { title: string; subtitle?: string; right?: ReactNode }) {
   const colors = useColors();
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 12, gap: 12 }}>
+    <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 14, gap: 12 }}>
       <View style={{ flex: 1 }}>
-        <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 18, fontWeight: "800", letterSpacing: -0.2 }}>
+        <Text
+          accessibilityRole="header"
+          style={{
+            color: colors.foreground,
+            fontFamily: SERIF_FONT,
+            fontSize: 19,
+            fontWeight: "700",
+            letterSpacing: 0.2,
+          }}
+        >
           {title}
         </Text>
         {subtitle ? (
-          <Text style={{ color: colors.muted, fontSize: 14, marginTop: 3, lineHeight: 20 }}>{subtitle}</Text>
+          <Text style={{ color: colors.muted, fontSize: 14, marginTop: 4, lineHeight: 20 }}>{subtitle}</Text>
         ) : null}
       </View>
       {right}
@@ -76,15 +86,24 @@ export function Chip({
         alignItems: "center",
         gap: 6,
         paddingHorizontal: 12,
-        minHeight: 36,
-        borderRadius: 18,
+        minHeight: 34,
+        borderRadius: 8,
         borderWidth: 1,
-        borderColor: selected ? tint : colors.border,
-        backgroundColor: selected ? `${tint}22` : "transparent",
+        borderColor: selected ? tint : textColor ? "rgba(255,255,255,0.22)" : colors.border,
+        backgroundColor: selected ? (textColor ? "rgba(255,255,255,0.16)" : `${tint}18`) : "transparent",
       }}
     >
-      {dot ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: dot, opacity: selected ? 1 : 0.35 }} /> : null}
-      <Text style={{ color: textColor ?? (selected ? colors.foreground : colors.muted), opacity: textColor && !selected ? 0.7 : 1, fontSize: 14, fontWeight: "700" }}>{label}</Text>
+      {dot ? <View style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: dot, opacity: selected ? 1 : 0.35 }} /> : null}
+      <Text
+        style={{
+          color: textColor ?? (selected ? colors.primary : colors.muted),
+          opacity: textColor && !selected ? 0.72 : 1,
+          fontSize: 14,
+          fontWeight: selected ? "800" : "600",
+        }}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -102,7 +121,7 @@ export function Segmented<T extends string>({
   return (
     <View
       accessibilityRole="tablist"
-      style={{ flexDirection: "row", backgroundColor: colors.surface, borderRadius: 14, padding: 4, borderWidth: 1, borderColor: colors.border }}
+      style={{ flexDirection: "row", backgroundColor: colors.surface, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: colors.border }}
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -112,9 +131,9 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
-            style={{ flex: 1, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: active ? colors.primary : "transparent" }}
+            style={{ flex: 1, minHeight: 38, alignItems: "center", justifyContent: "center", borderRadius: 9, backgroundColor: active ? colors.primary : "transparent" }}
           >
-            <Text style={{ color: active ? colors.onPrimary : colors.muted, fontSize: 14, fontWeight: "700" }}>{o.label}</Text>
+            <Text style={{ color: active ? colors.onPrimary : colors.muted, fontSize: 14, fontWeight: active ? "800" : "600" }}>{o.label}</Text>
           </Pressable>
         );
       })}
@@ -126,7 +145,7 @@ export function StatTile({ label, value, unit, note, tone }: { label: string; va
   const colors = useColors();
   const color = tone === "good" ? colors.success : tone === "bad" ? colors.error : colors.foreground;
   return (
-    <View style={{ flex: 1, minWidth: 130, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, minWidth: 130, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border }}>
       <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>{label}</Text>
       <View style={{ flexDirection: "row", alignItems: "baseline", marginTop: 4 }}>
         <Text style={{ color, fontSize: 26, fontWeight: "800", fontVariant: ["tabular-nums"], letterSpacing: -0.5 }}>{value}</Text>

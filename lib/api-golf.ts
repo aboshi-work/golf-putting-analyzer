@@ -469,6 +469,18 @@ export async function getCourses(): Promise<GolfCourse[]> {
   }
 }
 
+export async function getCourse(id: string): Promise<GolfCourse | null> {
+  try {
+    const numId = toNumericId(id);
+    if (isNaN(numId)) return null;
+    const db = await trpcQuery<DbCourse>("golf.courses.get", { id: numId });
+    return db ? dbCourseToClient(db) : null;
+  } catch (error) {
+    console.error("[api-golf] getCourse error:", error);
+    return null;
+  }
+}
+
 /**
  * saveCourse — creates a new course (matches lib/storage.ts signature).
  */
@@ -484,6 +496,25 @@ export async function saveCourse(
     return dbCourseToClient(db);
   } catch (error) {
     console.error("[api-golf] saveCourse error:", error);
+    throw error;
+  }
+}
+
+export async function updateCourse(
+  id: string,
+  updates: Partial<Omit<GolfCourse, "id" | "createdAt">>,
+): Promise<GolfCourse | null> {
+  try {
+    const numId = toNumericId(id);
+    if (isNaN(numId)) return null;
+    const input: Record<string, unknown> = { id: numId };
+    if (updates.name !== undefined) input.name = updates.name;
+    if (updates.location !== undefined) input.location = updates.location || null;
+    if (updates.greens !== undefined) input.greens = updates.greens;
+    const db = await trpcMutate<DbCourse>("golf.courses.update", input);
+    return db ? dbCourseToClient(db) : null;
+  } catch (error) {
+    console.error("[api-golf] updateCourse error:", error);
     throw error;
   }
 }

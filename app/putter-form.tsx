@@ -1,16 +1,19 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
-  ScrollView,
-  Text,
-  View,
-  TouchableOpacity,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
+import { SERIF_FONT } from "@/constants/theme";
 import { ScreenContainer } from "@/components/screen-container";
+import { Card, SectionTitle } from "@/components/analysis/ui";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
@@ -24,8 +27,10 @@ export default function PutterFormScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colors = useColors();
+  const { width: rawScreenW } = useWindowDimensions();
+  const contentW = Math.min(rawScreenW > 0 ? rawScreenW : 390, 720) - 32;
 
-  const [isEditing, setIsEditing] = useState(false);
+  const isEditing = Boolean(id);
   const [brandName, setBrandName] = useState("");
   const [productName, setProductName] = useState("");
   const [length, setLength] = useState("");
@@ -38,15 +43,9 @@ export default function PutterFormScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id) {
-      setIsEditing(true);
-      loadPutter(id);
-    }
-  }, [id]);
-
-  const loadPutter = async (putterId: string) => {
-    const putter = await getPutter(putterId);
-    if (putter) {
+    if (!id) return;
+    getPutter(id).then((putter) => {
+      if (!putter) return;
       setBrandName(putter.brandName);
       setProductName(putter.productName);
       setLength(putter.length.toString());
@@ -55,13 +54,11 @@ export default function PutterFormScreen() {
       setGripName(putter.gripName);
       setStartDate(putter.startDate);
       setRanking(putter.ranking);
-    }
-  };
+    });
+  }, [id]);
 
   const handleSave = async () => {
     setError(null);
-
-    // バリデーション
     if (!brandName.trim()) {
       setError("ブランド名を入力してください");
       return;
@@ -72,7 +69,8 @@ export default function PutterFormScreen() {
     }
 
     setIsSaving(true);
-
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const putterData = {
       brandName: brandName.trim(),
       productName: productName.trim(),
@@ -80,7 +78,7 @@ export default function PutterFormScreen() {
       lieAngle: parseFloat(lieAngle) || 70,
       weight: parseFloat(weight) || 350,
       gripName: gripName.trim(),
-      startDate: startDate || new Date().toISOString().split("T")[0],
+      startDate: startDate || today,
       usageCount: 0,
       ranking,
     };
@@ -93,8 +91,7 @@ export default function PutterFormScreen() {
       }
       hapticSuccess();
       router.back();
-    } catch (err) {
-      console.error("Save error:", err);
+    } catch {
       setError("保存に失敗しました。もう一度お試しください。");
     } finally {
       setIsSaving(false);
@@ -103,189 +100,140 @@ export default function PutterFormScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right", "bottom"]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
-        {/* ヘッダー */}
-        <View className="flex-row items-center justify-between p-4 border-b border-border bg-surface">
-          <TouchableOpacity 
-            onPress={() => router.back()}
-            className="p-2 -ml-2"
-          >
-            <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
-          </TouchableOpacity>
-          <Text className="text-lg font-bold text-foreground">
-            {isEditing ? "パター編集" : "パター登録"}
-          </Text>
-          <TouchableOpacity 
-            onPress={handleSave}
-            disabled={isSaving}
-            className="bg-primary px-4 py-2 rounded-lg"
-            style={{ opacity: isSaving ? 0.5 : 1 }}
-          >
-            <Text className="text-onPrimary font-semibold">
-              {isSaving ? "保存中..." : "保存"}
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <View
+          style={{
+            width: "100%",
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+            backgroundColor: colors.surface,
+            alignItems: "center",
+          }}
+        >
+          <View style={{ width: contentW, minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Pressable onPress={() => router.back()} accessibilityLabel="戻る" style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", marginLeft: -8 }}>
+              <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
+            </Pressable>
+            <Text style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 19, fontWeight: "700" }}>
+              {isEditing ? "パター編集" : "パター登録"}
             </Text>
-          </TouchableOpacity>
+            <Pressable
+              onPress={() => void handleSave()}
+              disabled={isSaving}
+              style={{ minHeight: 36, paddingHorizontal: 14, borderRadius: 8, backgroundColor: colors.primary, justifyContent: "center", opacity: isSaving ? 0.6 : 1 }}
+            >
+              <Text style={{ color: colors.onPrimary, fontSize: 14, fontWeight: "800" }}>{isSaving ? "保存中..." : "保存"}</Text>
+            </Pressable>
+          </View>
         </View>
 
-        <ScrollView 
-          contentContainerStyle={{ flexGrow: 1, padding: 16 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View className="gap-5">
-            {/* エラー表示 */}
-            {error && <ErrorBanner message={error} style={{ marginBottom: 16 }} />}
+        <ScrollView contentContainerStyle={{ alignItems: "center", paddingVertical: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+          <View style={{ width: contentW, gap: 16 }}>
+            {error && <ErrorBanner message={error} />}
 
-            {/* 必須項目セクション */}
-            <View className="bg-surface rounded-2xl p-4 border border-border">
-              <Text className="text-base font-semibold text-foreground mb-4">
-                基本情報（必須）
-              </Text>
-              
-              <View className="gap-4">
-                <View>
-                  <Text className="text-muted text-sm mb-2">ブランド名 *</Text>
-                  <TextInput
-                    className="bg-background border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                    value={brandName}
-                    onChangeText={setBrandName}
-                    placeholder="例: Scotty Cameron"
-                    placeholderTextColor={colors.muted}
-                    returnKeyType="next"
-                    autoCapitalize="words"
-                  />
-                </View>
-
-                <View>
-                  <Text className="text-muted text-sm mb-2">商品名 *</Text>
-                  <TextInput
-                    className="bg-background border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                    value={productName}
-                    onChangeText={setProductName}
-                    placeholder="例: Newport 2"
-                    placeholderTextColor={colors.muted}
-                    returnKeyType="next"
-                    autoCapitalize="words"
-                  />
-                </View>
+            <Card>
+              <SectionTitle title="基本情報（必須）" />
+              <View style={{ gap: 14 }}>
+                <LabeledField label="ブランド名 *" value={brandName} onChangeText={setBrandName} placeholder="例: Scotty Cameron" autoCapitalize="words" />
+                <LabeledField label="商品名 *" value={productName} onChangeText={setProductName} placeholder="例: Newport 2" autoCapitalize="words" />
               </View>
-            </View>
+            </Card>
 
-            {/* スペックセクション */}
-            <View className="bg-surface rounded-2xl p-4 border border-border">
-              <Text className="text-base font-semibold text-foreground mb-4">
-                スペック（任意）
-              </Text>
-              
-              <View className="gap-4">
-                <View className="flex-row gap-3">
-                  <View className="flex-1">
-                    <Text className="text-muted text-sm mb-2">長さ（インチ）</Text>
-                    <TextInput
-                      className="bg-background border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                      value={length}
-                      onChangeText={setLength}
-                      placeholder="34"
-                      placeholderTextColor={colors.muted}
-                      keyboardType="decimal-pad"
-                      returnKeyType="done"
-                    />
+            <Card>
+              <SectionTitle title="スペック（任意）" />
+              <View style={{ gap: 14 }}>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <LabeledField label="長さ（インチ）" value={length} onChangeText={setLength} placeholder="34" keyboardType="decimal-pad" />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-muted text-sm mb-2">ライ角（度）</Text>
-                    <TextInput
-                      className="bg-background border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                      value={lieAngle}
-                      onChangeText={setLieAngle}
-                      placeholder="70"
-                      placeholderTextColor={colors.muted}
-                      keyboardType="decimal-pad"
-                      returnKeyType="done"
-                    />
+                  <View style={{ flex: 1 }}>
+                    <LabeledField label="ライ角（度）" value={lieAngle} onChangeText={setLieAngle} placeholder="70" keyboardType="decimal-pad" />
                   </View>
                 </View>
-
-                <View className="flex-row gap-3">
-                  <View className="flex-1">
-                    <Text className="text-muted text-sm mb-2">重量（g）</Text>
-                    <TextInput
-                      className="bg-background border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                      value={weight}
-                      onChangeText={setWeight}
-                      placeholder="350"
-                      placeholderTextColor={colors.muted}
-                      keyboardType="decimal-pad"
-                      returnKeyType="done"
-                    />
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <LabeledField label="重量（g）" value={weight} onChangeText={setWeight} placeholder="350" keyboardType="decimal-pad" />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-muted text-sm mb-2">グリップ</Text>
-                    <TextInput
-                      className="bg-background border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                      value={gripName}
-                      onChangeText={setGripName}
-                      placeholder="SuperStroke"
-                      placeholderTextColor={colors.muted}
-                      returnKeyType="done"
-                    />
+                  <View style={{ flex: 1 }}>
+                    <LabeledField label="グリップ" value={gripName} onChangeText={setGripName} placeholder="SuperStroke" />
                   </View>
                 </View>
-
-                <View>
-                  <Text className="text-muted text-sm mb-2">使用開始日</Text>
-                  <TextInput
-                    className="bg-background border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                    value={startDate}
-                    onChangeText={setStartDate}
-                    placeholder="YYYY-MM-DD（例: 2024-01-01）"
-                    placeholderTextColor={colors.muted}
-                    returnKeyType="done"
-                  />
-                </View>
+                <LabeledField label="使用開始日" value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD（例: 2026-04-01）" />
               </View>
-            </View>
+            </Card>
 
-            {/* 位置づけセクション */}
-            <View className="bg-surface rounded-2xl p-4 border border-border">
-              <Text className="text-base font-semibold text-foreground mb-4">
-                位置づけ
-              </Text>
-              <Text className="text-muted text-sm mb-3">
-                このパターの使用優先度を選択してください
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {(Object.keys(LABELS.putterRanking) as PutterRanking[]).map(
-                  (r) => (
-                    <TouchableOpacity
+            <Card>
+              <SectionTitle title="位置づけ" subtitle="このパターの使用優先度を選択してください" />
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {(Object.keys(LABELS.putterRanking) as PutterRanking[]).map((r) => {
+                  const active = ranking === r;
+                  return (
+                    <Pressable
                       key={r}
-                      className={`px-5 py-3 rounded-xl border-2 ${
-                        ranking === r
-                          ? "bg-primary border-primary"
-                          : "bg-background border-border"
-                      }`}
                       onPress={() => setRanking(r)}
-                      activeOpacity={0.7}
+                      style={{
+                        minHeight: 42,
+                        paddingHorizontal: 16,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: active ? colors.primary : colors.border,
+                        backgroundColor: active ? colors.primary : colors.background,
+                        justifyContent: "center",
+                      }}
                     >
-                      <Text
-                        className={`font-medium ${
-                          ranking === r ? "text-onPrimary" : "text-foreground"
-                        }`}
-                      >
+                      <Text style={{ color: active ? colors.onPrimary : colors.foreground, fontSize: 15, fontWeight: "700" }}>
                         {LABELS.putterRanking[r]}
                       </Text>
-                    </TouchableOpacity>
-                  )
-                )}
+                    </Pressable>
+                  );
+                })}
               </View>
-            </View>
-
-            {/* 下部の余白 */}
-            <View className="h-8" />
+            </Card>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </ScreenContainer>
+  );
+}
+
+function LabeledField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+  autoCapitalize,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  keyboardType?: "default" | "decimal-pad";
+  autoCapitalize?: "none" | "words";
+}) {
+  const colors = useColors();
+  return (
+    <View>
+      <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600", marginBottom: 6 }}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.muted}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        returnKeyType="done"
+        style={{
+          minHeight: 46,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.background,
+          paddingHorizontal: 12,
+          fontSize: 16,
+          color: colors.foreground,
+        }}
+      />
+    </View>
   );
 }

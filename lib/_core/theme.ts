@@ -63,8 +63,8 @@ export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: "system-ui",
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: "ui-serif",
+    /** 明朝（日本語見出し用） */
+    serif: "HiraginoMinchoProN-W6",
     /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: "ui-rounded",
     /** iOS `UIFontDescriptorSystemDesignMonospaced` */
@@ -77,9 +77,12 @@ export const Fonts = Platform.select({
     mono: "monospace",
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    sans: "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    serif: "'Hiragino Mincho ProN', 'YuMincho', 'Yu Mincho', 'Noto Serif JP', Georgia, serif",
+    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, sans-serif",
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+/** クラシッククラブ調の見出し書体（明朝） */
+export const SERIF_FONT = Fonts?.serif ?? "serif";

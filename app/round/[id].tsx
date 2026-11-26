@@ -8,6 +8,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { SERIF_FONT } from "@/constants/theme";
 import { ConfirmBox } from "@/components/ui/confirm-box";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -117,7 +118,7 @@ export default function RoundDetailScreen() {
         <View style={{ width: contentW, gap: 16 }}>
           <Header onBack={() => router.back()} title={`${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`} />
           <View>
-            <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 26, fontWeight: "900", letterSpacing: -0.4 }}>
+            <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: SERIF_FONT, fontSize: 26, fontWeight: "700", letterSpacing: 0.2 }}>
               {round.courseName}
             </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 8 }}>

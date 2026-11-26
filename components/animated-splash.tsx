@@ -30,6 +30,7 @@ import Svg, {
 } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 
+import { SERIF_FONT } from "@/constants/theme";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 
 const GOLD = "#DAA520";
@@ -545,10 +546,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontSize: 25,
-    fontWeight: "800",
+    fontFamily: SERIF_FONT,
+    fontSize: 26,
+    fontWeight: "700",
     color: "#FFFFFF",
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   subtitle: {
     marginTop: 8,
