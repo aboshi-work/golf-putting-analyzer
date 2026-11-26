@@ -1,4 +1,11 @@
-import { GoogleGenerativeAI, type Part } from "@google/generative-ai";
+import {
+  GoogleGenAI,
+  ThinkingLevel,
+  type Content,
+  type GenerateContentConfig,
+  type Part,
+  type Schema,
+} from "@google/genai";
 import { ENV } from "./env";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
@@ -47,14 +54,11 @@ export type InvokeParams = {
   maxTokens?: number;
   max_tokens?: number;
   /**
-   * Gemini 2.5 系の思考トークン数。値が大きいほど精度が上がるが、思考トークンは出力単価で課金され
-   * 処理時間も増える。OCRは 2048（コスト重視）〜5000（精度重視）の範囲で調整する。
-   * Gemini 3 系では無視され、thinkingLevel が使われる。
+   * Gemini 2.5 系の思考トークン数。Gemini 3 系では無視され、thinkingLevel が使われる。
    */
   thinkingBudget?: number;
   /**
    * Gemini 3 系の思考レベル（thinkingBudget の後継）。
-   * Gemini 2.5 系では無視される。OCRのような視覚タスクは "high" 推奨。
    */
   thinkingLevel?: "minimal" | "low" | "medium" | "high";
 };
@@ -76,6 +80,13 @@ export type InvokeResult = {
     completion_tokens: number;
     total_tokens: number;
   };
+};
+
+const THINKING_LEVEL_MAP: Record<NonNullable<InvokeParams["thinkingLevel"]>, ThinkingLevel> = {
+  minimal: ThinkingLevel.MINIMAL,
+  low: ThinkingLevel.LOW,
+  medium: ThinkingLevel.MEDIUM,
+  high: ThinkingLevel.HIGH,
 };
 
 async function urlToInlineData(url: string): Promise<{ data: string; mimeType: string }> {
@@ -103,17 +114,14 @@ async function convertContentToParts(
     } else if (part.type === "image_url") {
       const url = part.image_url.url;
       if (url.startsWith("data:")) {
-        // Already base64 encoded data URI
         const [header, data] = url.split(",");
         const mimeType = header.split(":")[1].split(";")[0];
         result.push({ inlineData: { data, mimeType } });
       } else {
-        // Fetch and convert to inline data
         const inlineData = await urlToInlineData(url);
         result.push({ inlineData });
       }
     }
-    // Skip file_url (not supported in basic Gemini text generation)
   }
 
   return result;
@@ -124,13 +132,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     throw new Error("GEMINI_API_KEY is not configured");
   }
 
-  const genAI = new GoogleGenerativeAI(ENV.geminiApiKey);
+  const ai = new GoogleGenAI({ apiKey: ENV.geminiApiKey });
 
-  // Separate system messages from conversation messages
   const systemMessages = params.messages.filter((m) => m.role === "system");
   const conversationMessages = params.messages.filter((m) => m.role !== "system");
 
-  // Build system instruction text
   const systemInstruction =
     systemMessages.length > 0
       ? systemMessages
@@ -139,73 +145,62 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           .join("\n")
       : undefined;
 
-  // Check if JSON output is requested
   const responseFormatType =
     (params.responseFormat?.type ?? params.response_format?.type) === "json_object"
       ? "json_object"
       : undefined;
 
-  // generationConfig: JSON強制出力 + 思考モード（精度向上）
-  const generationConfig: Record<string, unknown> = {
+  const config: GenerateContentConfig = {
     // 決定論的出力: OCRのような正確性重視タスクではブレを排除する
     temperature: 0,
   };
-  if (responseFormatType === "json_object") {
-    // responseMimeType でモデルに JSON 出力を強制（テキスト指示より確実）
-    generationConfig.responseMimeType = "application/json";
+  if (systemInstruction) {
+    config.systemInstruction = systemInstruction;
   }
-  // thinking: モデルが回答前に内部で推論する設定。OCRのような複雑な視覚タスクで精度が大幅に向上する。
-  // Gemini 3 系は thinkingLevel、2.5 系は thinkingBudget と指定方法が異なる（両方送ると400エラー）
+  if (params.maxTokens ?? params.max_tokens) {
+    config.maxOutputTokens = params.maxTokens ?? params.max_tokens;
+  }
+  if (responseFormatType === "json_object") {
+    config.responseMimeType = "application/json";
+  }
+
   const modelName = params.model ?? ENV.geminiModel;
   if (params.responseSchema) {
-    generationConfig.responseMimeType = "application/json";
-    generationConfig.responseSchema = params.responseSchema;
+    config.responseMimeType = "application/json";
+    config.responseSchema = params.responseSchema as unknown as Schema;
   }
+
+  // Gemini 3 系は thinkingLevel、2.5 系は thinkingBudget（両方送ると400エラー）
   const isGemini3 = modelName.startsWith("gemini-3");
   if (isGemini3) {
     const level =
       params.thinkingLevel ??
-      // 後方互換: thinkingBudget しか指定されていない呼び出しは high に読み替える
       (params.thinkingBudget && params.thinkingBudget > 0 ? "high" : undefined);
     if (level) {
-      generationConfig.thinkingConfig = { thinkingLevel: level };
+      config.thinkingConfig = { thinkingLevel: THINKING_LEVEL_MAP[level] };
     }
   } else if (params.thinkingBudget && params.thinkingBudget > 0) {
-    generationConfig.thinkingConfig = { thinkingBudget: params.thinkingBudget };
+    config.thinkingConfig = { thinkingBudget: params.thinkingBudget };
   }
 
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    ...(systemInstruction ? { systemInstruction } : {}),
-    ...(Object.keys(generationConfig).length > 0
-      ? { generationConfig: generationConfig as any }
-      : {}),
-  });
-
-  // Convert messages to Gemini history format (all but the last)
-  const history: { role: "user" | "model"; parts: Part[] }[] = [];
-  const lastMessage = conversationMessages[conversationMessages.length - 1];
-
-  for (const msg of conversationMessages.slice(0, -1)) {
-    const geminiRole = msg.role === "assistant" ? "model" : "user";
-    history.push({
-      role: geminiRole,
+  const contents: Content[] = [];
+  for (const msg of conversationMessages) {
+    contents.push({
+      role: msg.role === "assistant" ? "model" : "user",
       parts: await convertContentToParts(msg.content),
     });
   }
+  if (contents.length === 0) {
+    contents.push({ role: "user", parts: [{ text: "" }] });
+  }
 
-  const chat = model.startChat({ history });
+  const response = await ai.models.generateContent({
+    model: modelName,
+    contents,
+    config,
+  });
 
-  // Build parts for the last message
-  const lastParts = lastMessage
-    ? await convertContentToParts(lastMessage.content)
-    : [{ text: "" }];
-
-  // responseMimeType: "application/json" が設定されている場合、テキストリマインダー不要
-  const finalParts = lastParts;
-
-  const result = await chat.sendMessage(finalParts);
-  const responseText = result.response.text();
+  const responseText = response.text ?? "";
 
   return {
     id: `gemini-${Date.now()}`,
@@ -222,9 +217,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       },
     ],
     usage: {
-      prompt_tokens: result.response.usageMetadata?.promptTokenCount ?? 0,
-      completion_tokens: result.response.usageMetadata?.candidatesTokenCount ?? 0,
-      total_tokens: result.response.usageMetadata?.totalTokenCount ?? 0,
+      prompt_tokens: response.usageMetadata?.promptTokenCount ?? 0,
+      completion_tokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+      total_tokens: response.usageMetadata?.totalTokenCount ?? 0,
     },
   };
 }
